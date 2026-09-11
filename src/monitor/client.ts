@@ -109,6 +109,10 @@ export class MonitorClient {
     this.send({ cmd: "kill", pid, signal })
   }
 
+  openTerminal(pid: number, cwd?: string) {
+    this.send({ cmd: "open_terminal", pid, cwd })
+  }
+
   setInterval(ms: number) {
     this.send({ cmd: "set_interval", ms })
   }

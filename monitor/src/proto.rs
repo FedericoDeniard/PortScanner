@@ -31,6 +31,10 @@ pub struct PortEntry {
     pub pid: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exe: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
     pub category: Category,
 }
 
@@ -64,6 +68,14 @@ pub enum Event {
         #[serde(skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
+    Opened {
+        pid: u32,
+        ok: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        terminal: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     Error {
         message: String,
     },
@@ -82,6 +94,11 @@ pub enum Command {
     Kill {
         pid: u32,
         signal: Option<String>,
+    },
+    OpenTerminal {
+        pid: u32,
+        #[serde(default)]
+        cwd: Option<String>,
     },
     Shutdown,
 }
@@ -126,6 +143,8 @@ mod tests {
             state: Some("LISTEN".into()),
             pid: Some(42),
             process_name: Some("node".into()),
+            exe: None,
+            cwd: None,
             category: Category::UserDev,
         }
     }
@@ -190,6 +209,68 @@ mod tests {
         }
         let cmd: Command = serde_json::from_str(r#"{"cmd":"shutdown"}"#).unwrap();
         assert!(matches!(cmd, Command::Shutdown));
+    }
+
+    #[test]
+    fn command_parse_open_terminal() {
+        let cmd: Command = serde_json::from_str(r#"{"cmd":"open_terminal","pid":4242}"#).unwrap();
+        match cmd {
+            Command::OpenTerminal { pid, cwd } => {
+                assert_eq!(pid, 4242);
+                assert!(cwd.is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+
+        let cmd: Command = serde_json::from_str(
+            r#"{"cmd":"open_terminal","pid":7,"cwd":"/Users/fede/dev/hub"}"#,
+        )
+        .unwrap();
+        match cmd {
+            Command::OpenTerminal { pid, cwd } => {
+                assert_eq!(pid, 7);
+                assert_eq!(cwd.as_deref(), Some("/Users/fede/dev/hub"));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn event_opened_roundtrip() {
+        let evt = Event::Opened {
+            pid: 7,
+            ok: true,
+            terminal: Some("Orca".into()),
+            error: None,
+        };
+        let json = serde_json::to_string(&evt).unwrap();
+        assert!(json.contains("\"type\":\"opened\""));
+        assert!(json.contains("\"terminal\":\"Orca\""));
+        assert!(!json.contains("\"error\""));
+
+        let evt_fail = Event::Opened {
+            pid: 7,
+            ok: false,
+            terminal: None,
+            error: Some("no match".into()),
+        };
+        let json = serde_json::to_string(&evt_fail).unwrap();
+        assert!(json.contains("\"ok\":false"));
+        assert!(!json.contains("\"terminal\""));
+    }
+
+    #[test]
+    fn entry_serialization_includes_optional_cwd_exe() {
+        let mut e = entry();
+        e.cwd = Some("/Users/fede/projects/hub".into());
+        e.exe = Some("/Users/fede/.nvm/versions/node/.../bin/node".into());
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"cwd\":\"/Users/fede/projects/hub\""));
+        assert!(json.contains("\"exe\":"));
+
+        let parsed: PortEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.cwd.as_deref(), Some("/Users/fede/projects/hub"));
+        assert_eq!(parsed.exe.as_deref(), Some("/Users/fede/.nvm/versions/node/.../bin/node"));
     }
 
     #[test]

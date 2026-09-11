@@ -2,6 +2,7 @@ mod diff;
 mod kill;
 mod proto;
 mod scan;
+mod terminal;
 
 use std::io::{BufRead, BufReader, Write};
 use std::sync::mpsc;
@@ -11,7 +12,7 @@ use std::time::Duration;
 use proto::{Command, Event, Filter};
 use scan::Scanner;
 
-const PROTOCOL_VERSION: u32 = 2;
+const PROTOCOL_VERSION: u32 = 3;
 const DEFAULT_INTERVAL_MS: u64 = 1000;
 const MIN_INTERVAL_MS: u64 = 50;
 
@@ -100,6 +101,19 @@ fn main() {
                     cmd: "kill".into(),
                     pid: Some(pid),
                     ok,
+                    error,
+                });
+            }
+            Ok(Command::OpenTerminal { pid, cwd }) => {
+                let result = terminal::open_for_pid(pid, cwd.as_deref());
+                let (ok, terminal, error) = match result {
+                    terminal::OpenResult::Opened { terminal } => (true, Some(terminal), None),
+                    terminal::OpenResult::NoMatch { reason } => (false, None, Some(reason)),
+                };
+                emit(&Event::Opened {
+                    pid,
+                    ok,
+                    terminal,
                     error,
                 });
             }
