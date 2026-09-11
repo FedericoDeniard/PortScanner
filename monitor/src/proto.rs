@@ -9,12 +9,22 @@ pub enum Protocol {
     Udp,
 }
 
+impl std::fmt::Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Protocol::Tcp => f.write_str("tcp"),
+            Protocol::Udp => f.write_str("udp"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Category {
     System,
     UserApp,
     UserDev,
+    Container,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +51,16 @@ pub struct PortEntry {
     pub parent_pid: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_runtime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_port: Option<u16>,
     pub category: Category,
 }
 
@@ -48,6 +68,25 @@ impl PortEntry {
     pub fn key(&self) -> (Protocol, u16, Option<u32>) {
         (self.protocol, self.local_port, self.pid)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContainerInfo {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    #[serde(default)]
+    pub ports: Vec<ContainerPort>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContainerPort {
+    #[serde(rename = "hostPort")]
+    pub host_port: u16,
+    #[serde(rename = "containerPort")]
+    pub container_port: u16,
+    pub protocol: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,6 +127,9 @@ pub enum Event {
     Stats {
         stats: SystemStats,
     },
+    ContainersUpdated {
+        containers: Vec<ContainerInfo>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,6 +150,9 @@ pub enum Command {
         pid: u32,
         #[serde(default)]
         cwd: Option<String>,
+    },
+    StopContainer {
+        id: String,
     },
     Shutdown,
 }
@@ -156,6 +201,11 @@ mod tests {
             cwd: None,
             parent_pid: None,
             parent_name: None,
+            container_runtime: None,
+            container_id: None,
+            container_name: None,
+            container_image: None,
+            container_port: None,
             category: Category::UserDev,
         }
     }
@@ -179,6 +229,7 @@ mod tests {
             (Category::System, "\"system\""),
             (Category::UserApp, "\"user-app\""),
             (Category::UserDev, "\"user-dev\""),
+            (Category::Container, "\"container\""),
         ] {
             let json = serde_json::to_string(&c).unwrap();
             assert_eq!(json, expected);

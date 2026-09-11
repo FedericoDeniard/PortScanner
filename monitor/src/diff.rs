@@ -68,6 +68,11 @@ mod tests {
             cwd: None,
             parent_pid: None,
             parent_name: None,
+            container_runtime: None,
+            container_id: None,
+            container_name: None,
+            container_image: None,
+            container_port: None,
             category: Category::UserApp,
         }
     }

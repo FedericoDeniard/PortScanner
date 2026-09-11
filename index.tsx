@@ -18,12 +18,13 @@ const STATUS_COLOR = {
   error: colors.red,
 } as const
 
-const TAB_ORDER: Category[] = ["user-dev", "user-app", "system"]
+const TAB_ORDER: Category[] = ["user-dev", "user-app", "container", "system"]
 
 const TAB_META: Record<Category, { label: string; hint: string }> = {
-  "user-dev": { label: "Dev", hint: "levantados por el usuario" },
-  "user-app": { label: "Apps", hint: "apps en background" },
-  system: { label: "System", hint: "macOS — no tocar" },
+  "user-dev": { label: "Dev", hint: "started by the user" },
+  "user-app": { label: "Apps", hint: "apps running in background" },
+  container: { label: "Containers", hint: "ports forwarded by a runtime" },
+  system: { label: "System", hint: "macOS — do not touch" },
 }
 
 type Row =
@@ -67,6 +68,13 @@ function formatRow(p: PortEntry) {
     cwd: truncateCwd(p.cwd),
     addr: p.localAddr,
   }
+}
+
+function formatContainerLabel(p: PortEntry): string {
+  if (p.containerPort != null) {
+    return `${p.localPort}→${p.containerPort}`
+  }
+  return String(p.localPort)
 }
 
 function truncateCwd(cwd: string | undefined, max = 40): string {
@@ -310,6 +318,7 @@ function ChildRow({
   onSelect: () => void
 }) {
   const row = formatRow(port)
+  const isContainer = port.category === "container"
   return (
     <box
       id={`row-${portKey(port)}`}
@@ -322,14 +331,44 @@ function ChildRow({
       <text fg={isSelected ? colors.blue : colors.base}>
         {isSelected ? "▸ " : "  "}
       </text>
-      <text fg={isSelected ? colors.blue : colors.pink}>{row.port}</text>
+      <text fg={isSelected ? colors.blue : colors.pink}>
+        {isContainer ? formatContainerLabel(port).padEnd(8) : row.port}
+      </text>
       <text fg={colors.teal}>{row.proto}</text>
       <text fg={stateColor(port.state)}>{row.state}</text>
       <text fg={colors.lavender}>{row.pid}</text>
-      <text fg={colors.lavender}>{row.process}</text>
-      <text fg={colors.teal}>{row.cwd}</text>
+      <text fg={isContainer ? colors.pink : colors.lavender}>
+        {(isContainer
+          ? truncateContainerName(port.containerName ?? port.processName ?? "container", 24)
+        : row.process.slice(0, 24)).padEnd(24)}
+      </text>
+      <text fg={colors.teal}>
+        {isContainer
+          ? truncateImage(port.containerImage, 40)
+          : truncateCwd(port.cwd, 40)}
+      </text>
       <text fg={colors.base}>{row.addr}</text>
     </box>
+  )
+}
+
+function truncateContainerName(name: string | undefined, max: number): string {
+  if (!name) return "—"
+  if (name.length <= max) return name
+  return name.slice(0, max - 1) + "…"
+}
+
+function truncateImage(image: string | undefined, max: number): string {
+  if (!image) return "—".padEnd(max)
+  if (image.length <= max) return image.padEnd(max)
+  return "…" + image.slice(image.length - (max - 1))
+}
+
+function ContainerColumnsHeader() {
+  return (
+    <text fg={colors.base}>
+      {"CONTAINER                PID     SOCKETS                  PORT       PROTO  STATE         PID     NAME                                  IMAGE                                        LOCAL ADDR"}
+    </text>
   )
 }
 
@@ -391,25 +430,32 @@ function PortTable({
 
 function Footer() {
   const { state } = usePorts()
+  const base = "↑/↓ select · home/end jump · g/G next/prev group · space collapse · x kill · t terminal · tab cat · r restart · q quit"
+  const containerExtra = state.ports.some((p) => p.category === "container")
+    ? " · s stop container"
+    : ""
   return (
     <box style={{ flexDirection: "row", gap: 2 }}>
-      <text fg={colors.base}>
-        ↑/↓ select · home/end jump · g/G next/prev group · space collapse · x kill · t terminal · tab cat · r restart · q quit
-      </text>
+      <text fg={colors.base}>{`${base}${containerExtra}`}</text>
       {state.notice ? <text fg={colors.yellow}>{state.notice}</text> : null}
     </box>
   )
 }
 
 function Dashboard() {
-  const { state, killProcess, openTerminal, restart } = usePorts()
+  const { state, killProcess, stopContainer, openTerminal, restart } = usePorts()
   const renderer = useRenderer()
   const [activeTab, setActiveTab] = useState<Category>("user-dev")
   const [selected, setSelected] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const counts = useMemo(() => {
-    const c: Record<Category, number> = { "user-dev": 0, "user-app": 0, system: 0 }
+    const c: Record<Category, number> = {
+      "user-dev": 0,
+      "user-app": 0,
+      container: 0,
+      system: 0,
+    }
     for (const p of state.ports) c[p.category]++
     return c
   }, [state.ports])
@@ -516,6 +562,9 @@ function Dashboard() {
       const cwd = current?.kind === "child" ? current.port.cwd : undefined
       openTerminal(pid, cwd)
     }
+    if (key.name === "s" && current?.kind === "child" && current.port.containerId) {
+      stopContainer(current.port.containerId)
+    }
   })
 
   return (
@@ -540,9 +589,13 @@ function Dashboard() {
       <Header />
       <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
       <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
-      <text fg={colors.base}>
-        {"APP                       PID     SOCKETS                  PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
-      </text>
+      {activeTab === "container" ? (
+        <ContainerColumnsHeader />
+      ) : (
+        <text fg={colors.base}>
+          {"APP                       PID     SOCKETS                  PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
+        </text>
+      )}
       <PortTable
         key={`${activeTab}|${[...collapsed].sort().join(",")}`}
         rows={rows}

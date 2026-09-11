@@ -50,6 +50,11 @@ impl Scanner {
                     cwd: None,
                     parent_pid: None,
                     parent_name: None,
+                    container_runtime: None,
+                    container_id: None,
+                    container_name: None,
+                    container_image: None,
+                    container_port: None,
                     category: Category::UserApp,
                 }),
                 ProtocolSocketInfo::Udp(udp) => out.push(PortEntry {
@@ -65,6 +70,11 @@ impl Scanner {
                     cwd: None,
                     parent_pid: None,
                     parent_name: None,
+                    container_runtime: None,
+                    container_id: None,
+                    container_name: None,
+                    container_image: None,
+                    container_port: None,
                     category: Category::UserApp,
                 }),
             }
@@ -75,11 +85,16 @@ impl Scanner {
         for entry in &mut out {
             if let Some(pid) = entry.pid {
                 if let Some(process) = self.system.process(Pid::from_u32(pid)) {
-                    entry.process_name = Some(process.name().to_string_lossy().into_owned());
-                    entry.exe = process
-                        .exe()
-                        .map(|p| p.to_string_lossy().into_owned());
-                    entry.category = classify(process.exe());
+                    let pname = process.name().to_string_lossy().into_owned();
+                    let pexe = process.exe().map(|p| p.to_path_buf());
+                    entry.process_name = Some(pname.clone());
+                    entry.exe = pexe.as_ref().map(|p| p.to_string_lossy().into_owned());
+                    if let Some(runtime) = detect_runtime(&pname, pexe.as_deref()) {
+                        entry.container_runtime = Some(runtime.to_string());
+                        entry.category = Category::Container;
+                    } else {
+                        entry.category = classify(pexe.as_deref());
+                    }
                     if entry.cwd.is_none() && entry.category != Category::System {
                         entry.cwd = self.resolve_cwd(pid);
                     }
@@ -214,6 +229,41 @@ fn classify(exe: Option<&Path>) -> Category {
     }
 }
 
+fn detect_runtime(process_name: &str, exe: Option<&Path>) -> Option<&'static str> {
+    if process_name == "OrbStack Helper" || exe.map(is_orbstack).unwrap_or(false) {
+        return Some("orbstack");
+    }
+    if process_name == "com.docker.backend"
+        || process_name == "com.docker.helper"
+        || process_name == "com.docker.vpnkit"
+        || exe.map(is_docker_desktop).unwrap_or(false)
+    {
+        return Some("docker");
+    }
+    if process_name == "gvproxy"
+        || process_name == "vde_vmnet"
+        || process_name.starts_with("qemu-system-")
+    {
+        return Some("lima");
+    }
+    if process_name == "colima" {
+        return Some("colima");
+    }
+    if process_name == "com.apple.container.runtime" {
+        return Some("apple");
+    }
+    None
+}
+
+fn is_orbstack(exe: &Path) -> bool {
+    exe.to_string_lossy().contains("/OrbStack.app/")
+}
+
+fn is_docker_desktop(exe: &Path) -> bool {
+    let s = exe.to_string_lossy();
+    s.contains("/Docker.app/") || s.contains("com.docker.backend")
+}
+
 fn app_bundle_root(exe: &Path) -> Option<PathBuf> {
     let mut outermost: Option<PathBuf> = None;
     for ancestor in exe.ancestors() {
@@ -341,5 +391,75 @@ mod tests {
         assert!(!name_is_helper("Google Chrome"));
         assert!(!name_is_helper("Spotify"));
         assert!(!name_is_helper(""));
+    }
+
+    #[test]
+    fn detect_runtime_orbstack() {
+        assert_eq!(
+            detect_runtime("OrbStack Helper", None),
+            Some("orbstack")
+        );
+        assert_eq!(
+            detect_runtime(
+                "OrbStack Helper",
+                Some(&PathBuf::from(
+                    "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+                )),
+            ),
+            Some("orbstack")
+        );
+        assert_eq!(
+            detect_runtime(
+                "OrbStack",
+                Some(&PathBuf::from("/Applications/OrbStack.app/Contents/MacOS/OrbStack")),
+            ),
+            Some("orbstack")
+        );
+    }
+
+    #[test]
+    fn detect_runtime_docker_desktop() {
+        assert_eq!(detect_runtime("com.docker.backend", None), Some("docker"));
+        assert_eq!(detect_runtime("com.docker.helper", None), Some("docker"));
+        assert_eq!(detect_runtime("com.docker.vpnkit", None), Some("docker"));
+        assert_eq!(
+            detect_runtime(
+                "com.docker.backend",
+                Some(&PathBuf::from(
+                    "/Applications/Docker.app/Contents/MacOS/com.docker.backend"
+                )),
+            ),
+            Some("docker")
+        );
+    }
+
+    #[test]
+    fn detect_runtime_lima_family() {
+        assert_eq!(detect_runtime("gvproxy", None), Some("lima"));
+        assert_eq!(detect_runtime("vde_vmnet", None), Some("lima"));
+        assert_eq!(detect_runtime("qemu-system-aarch64", None), Some("lima"));
+        assert_eq!(detect_runtime("qemu-system-x86_64", None), Some("lima"));
+        assert_eq!(detect_runtime("colima", None), Some("colima"));
+    }
+
+    #[test]
+    fn detect_runtime_apple_container() {
+        assert_eq!(
+            detect_runtime("com.apple.container.runtime", None),
+            Some("apple")
+        );
+    }
+
+    #[test]
+    fn detect_runtime_returns_none_for_normal_apps() {
+        assert_eq!(detect_runtime("node", None), None);
+        assert_eq!(
+            detect_runtime(
+                "node",
+                Some(&PathBuf::from("/Users/fede/dev/hub/node_modules/.bin/node")),
+            ),
+            None
+        );
+        assert_eq!(detect_runtime("", None), None);
     }
 }

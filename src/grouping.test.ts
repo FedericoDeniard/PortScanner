@@ -102,4 +102,58 @@ describe("groupPorts", () => {
     expect(groups[0]!.key).toBe("g:99")
     expect(groups[0]!.pid).toBe(99)
   })
+
+  test("container entries group by containerId", () => {
+    const ports: PortEntry[] = [
+      entry({
+        localPort: 8000,
+        pid: 99,
+        category: "container",
+        containerId: "abc123",
+        containerName: "kong",
+        processName: "OrbStack Helper",
+      }),
+      entry({
+        localPort: 5432,
+        pid: 99,
+        category: "container",
+        containerId: "abc123",
+        containerName: "kong",
+        processName: "OrbStack Helper",
+      }),
+      entry({
+        localPort: 9000,
+        pid: 99,
+        category: "container",
+        containerId: "def456",
+        containerName: "studio",
+        processName: "OrbStack Helper",
+      }),
+    ]
+    const groups = groupPorts(ports)
+    expect(groups).toHaveLength(2)
+    expect(groups.map((g) => g.key).sort()).toEqual(["c:abc123", "c:def456"])
+    expect(groups.find((g) => g.key === "c:abc123")?.children).toHaveLength(2)
+  })
+
+  test("container entries without containerId fall back to pid key", () => {
+    const ports: PortEntry[] = [
+      entry({
+        localPort: 8000,
+        pid: 99,
+        category: "container",
+        processName: "OrbStack Helper",
+      }),
+      entry({
+        localPort: 8001,
+        pid: 99,
+        category: "container",
+        processName: "OrbStack Helper",
+      }),
+    ]
+    const groups = groupPorts(ports)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.key).toBe("g:99")
+    expect(groups[0]!.name).toBe("pid:99 · OrbStack Helper")
+  })
 })
