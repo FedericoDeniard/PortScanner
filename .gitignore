@@ -1,0 +1,4 @@
+node_modules/
+monitor/target/
+monitor/Cargo.lock
+*.log
