@@ -52,7 +52,7 @@ impl Diff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proto::Protocol;
+    use crate::proto::{Category, Protocol};
 
     fn entry(port: u16, pid: u32) -> PortEntry {
         PortEntry {
@@ -64,6 +64,7 @@ mod tests {
             state: Some("LISTEN".into()),
             pid: Some(pid),
             process_name: None,
+            category: Category::UserApp,
         }
     }
 

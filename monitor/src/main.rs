@@ -11,7 +11,7 @@ use std::time::Duration;
 use proto::{Command, Event, Filter};
 use scan::Scanner;
 
-const PROTOCOL_VERSION: u32 = 1;
+const PROTOCOL_VERSION: u32 = 2;
 const DEFAULT_INTERVAL_MS: u64 = 1000;
 const MIN_INTERVAL_MS: u64 = 50;
 
