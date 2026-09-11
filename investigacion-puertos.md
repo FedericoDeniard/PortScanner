@@ -1,93 +1,93 @@
-# Investigación: Puertos en uso en mi Mac
+# Research: Ports in use on my Mac
 
-Fecha: 2026-09-10
+Date: 2026-09-10
 
-## Objetivo
+## Goal
 
-Saber qué puertos están en uso en la máquina, qué información se puede obtener de ellos y cómo distinguir los procesos levantados por el usuario de los del sistema.
+Find out which ports are in use on the machine, what information can be obtained from them, and how to distinguish processes started by the user from those belonging to the system.
 
-## Comandos clave
+## Key commands
 
-| Comando | Qué muestra |
+| Command | What it shows |
 |---|---|
-| `lsof -iTCP -sTCP:LISTEN -P -n` | Puertos TCP esperando conexiones (servidores locales) |
-| `lsof -iUDP -P -n` | Sockets UDP abiertos |
-| `lsof -iTCP -sTCP:ESTABLISHED -P -n` | Conexiones activas hacia internet (quién habla con quién) |
-| `lsof -i :<puerto> -P -n` | Qué proceso usa un puerto puntual |
-| `ps -p <PID> -o pid,comm,args` | Ruta completa del ejecutable de un proceso |
-| `netstat -anv -p tcp` | Alternativa nativa de macOS con detalle de bajo nivel |
+| `lsof -iTCP -sTCP:LISTEN -P -n` | TCP ports waiting for connections (local servers) |
+| `lsof -iUDP -P -n` | Open UDP sockets |
+| `lsof -iTCP -sTCP:ESTABLISHED -P -n` | Active connections to the internet (who is talking to whom) |
+| `lsof -i :<port> -P -n` | Which process uses a specific port |
+| `ps -p <PID> -o pid,comm,args` | Full path of a process's executable |
+| `netstat -anv -p tcp` | Native macOS alternative with low-level detail |
 
-Flags útiles de `lsof`:
+Useful `lsof` flags:
 
-- `-P`: muestra números de puerto en vez de nombres de servicio
-- `-n`: no resuelve DNS (mucho más rápido)
-- `sudo`: permite ver también procesos de root y otros usuarios
+- `-P`: show port numbers instead of service names
+- `-n`: do not resolve DNS (much faster)
+- `sudo`: also allow seeing processes from root and other users
 
-## Información que se obtiene por cada socket
+## Information obtained per socket
 
-- **COMMAND**: nombre del proceso (ej: `Spotify`, `node`, `OrbStack`)
-- **PID**: ID del proceso (útil para matarlo con `kill <PID>`)
-- **USER**: usuario dueño del proceso
-- **Dirección de escucha**:
-  - `*:<puerto>` → escucha en todas las interfaces (accesible desde la red)
-  - `127.0.0.1:<puerto>` → solo localhost (más seguro)
-- **Puerto**: número de puerto
-- **Conexiones establecidas**: IP y puerto remoto → a qué servidores está conectada cada app
+- **COMMAND**: process name (e.g. `Spotify`, `node`, `OrbStack`)
+- **PID**: process ID (useful to kill it with `kill <PID>`)
+- **USER**: user that owns the process
+- **Listen address**:
+  - `*:<port>` → listens on all interfaces (reachable from the network)
+  - `127.0.0.1:<port>` → localhost only (safer)
+- **Port**: port number
+- **Established connections**: remote IP and port → which servers each app is connected to
 
-## Estado de la máquina al momento de la investigación
+## Machine state at the time of the research
 
-- **31** puertos TCP en LISTEN
-- **57** sockets UDP abiertos
-- **53** conexiones TCP establecidas hacia afuera
+- **31** TCP ports in LISTEN
+- **57** open UDP sockets
+- **53** outgoing TCP established connections
 
-## Cómo distinguir quién levantó cada proceso
+## How to tell who started each process
 
-Se combinan 3 señales: el usuario dueño, la ruta del ejecutable y si requiere `sudo`.
+Three signals are combined: the owning user, the executable path, and whether `sudo` is required.
 
-| Ruta del ejecutable | Clasificación |
+| Executable path | Classification |
 |---|---|
-| `/System/...`, `/usr/libexec/...` | Sistema (macOS) — no tocar |
-| `/Applications/...` | Apps instaladas por el usuario |
-| `node /Users/<usuario>/...` (carpeta de proyectos) | Procesos levantados manualmente (dev servers, scripts) |
+| `/System/...`, `/usr/libexec/...` | System (macOS) — do not touch |
+| `/Applications/...` | Apps installed by the user |
+| `node /Users/<user>/...` (projects folder) | Processes started manually (dev servers, scripts) |
 
-### Clasificación de lo encontrado
+### Classification of what was found
 
-**Levantados por el usuario (dev):**
+**Started by the user (dev):**
 
-| Proceso | PID | Puertos | Detalle |
+| Process | PID | Ports | Detail |
 |---|---|---|---|
 | `node` | 22685 | 3000, 3142 | Vite dev server (`53stations/apps/hub`) |
-| `node` | 1012 | 5173, 5350 | Proceso node en workspace de Orca |
+| `node` | 1012 | 5173, 5350 | node process in Orca workspace |
 | `OrbStack Helper` | 57807 | 54321–54327 | Docker/containers |
 
-**Apps del usuario (en background):**
+**User apps (in background):**
 
-| Proceso | Puertos | Detalle |
+| Process | Ports | Detail |
 |---|---|---|
-| `Spotify` | 7768, 57621, 50031 | Incluye 5353/1900 UDP (mDNS, SSDP) |
-| `Raycast` | 7265 | Solo localhost |
+| `Spotify` | 7768, 57621, 50031 | Includes 5353/1900 UDP (mDNS, SSDP) |
+| `Raycast` | 7265 | Localhost only |
 | `Orca` | 6768, 64469 | — |
 
-**Sistema macOS (no tocar):**
+**macOS system (do not touch):**
 
-| Proceso | Ruta | Puertos | Función |
+| Process | Path | Ports | Function |
 |---|---|---|---|
 | `rapportd` | `/usr/libexec/` | 49815 | AirDrop/Handoff |
 | `ControlCenter` | `/System/Library/CoreServices/` | 5000, 7000 | AirPlay |
-| `sharingd`, `identityservicesd` | sistema | UDP varios | Compartir/iCloud |
+| `sharingd`, `identityservicesd` | system | several UDP | Sharing/iCloud |
 
-## Conexiones salientes detectadas
+## Outgoing connections detected
 
-Ejemplos de conexiones ESTABLISHED hacia internet:
+Examples of ESTABLISHED connections to the internet:
 
 - `opencode` → 172.65.90.23:443
-- `Spotify` → múltiples IPs (35.186.224.x, 142.251.x.x — Google Cloud)
+- `Spotify` → multiple IPs (35.186.224.x, 142.251.x.x — Google Cloud)
 - `Meta Quest` → 57.144.206.x:443
-- `node` → 104.16.1.34:443 (múltiples conexiones)
+- `node` → 104.16.1.34:443 (multiple connections)
 
-## Reglas rápidas
+## Quick rules
 
-- Sin `sudo`, `lsof` solo muestra procesos del propio usuario.
-- Si `args` apunta a una carpeta de proyectos → lo levantó el usuario, se puede matar sin problema.
-- Si está en `/System` o `/usr/libexec` → es del sistema, dejarlo quieto.
-- Para liberar un puerto: `lsof -i :<puerto> -P -n` → obtener PID → `kill <PID>`.
+- Without `sudo`, `lsof` only shows processes of the current user.
+- If `args` points to a projects folder → the user started it, it can be killed without issue.
+- If it is in `/System` or `/usr/libexec` → it is a system process, leave it alone.
+- To free a port: `lsof -i :<port> -P -n` → get PID → `kill <PID>`.

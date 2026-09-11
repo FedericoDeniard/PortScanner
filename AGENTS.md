@@ -1,105 +1,106 @@
 # PortScanner
 
-Visualizador/escaner de puertos TCP/UDP en uso en la máquina local, construido como TUI con **OpenTUI** + **React 19** + **TypeScript**, con un **backend monitor en Rust** (`monitor/`) que reporta sockets por NDJSON sobre stdio.
+TCP/UDP port viewer/scanner in use on the local machine, built as a TUI with **OpenTUI** + **React 19** + **TypeScript**, with a **monitor backend in Rust** (`monitor/`) that reports sockets over NDJSON via stdio.
 
-## Comandos
+## Commands
 
-| Comando | Descripción |
+| Command | Description |
 | --- | --- |
-| `bun run dev` | Compila el monitor Rust (debug) y ejecuta la TUI. |
-| `bun start` | Ejecuta la TUI (requiere el binario ya compilado). |
-| `bun run build:monitor` | Compila el monitor Rust en release. |
-| `bun run install` | Build completo (Rust release + TUI self-contained) e instala `pscanner` en `~/.local/bin`. |
-| `pscanner-update` | Re-corre el install (lee `sourceDir` de `~/.local/share/pscanner/config.json`). |
-| `bun run uninstall` | Borra symlinks en `~/.local/bin` y `~/.local/share/pscanner/`. |
-| `bun test` | Tests TS (`bun:test`) + tests Rust (`cargo test`). |
+| `bun run dev` | Compiles the Rust monitor (debug) and runs the TUI. |
+| `bun start` | Runs the TUI (requires the binary already compiled). |
+| `bun run build:monitor` | Compiles the Rust monitor in release. |
+| `bun run install` | Full build (Rust release + TUI self-contained) and installs `pscanner` in `~/.local/bin`. |
+| `pscanner-update` | Re-runs install (reads `sourceDir` from `~/.local/share/pscanner/config.json`). |
+| `bun run uninstall` | Removes symlinks in `~/.local/bin` and `~/.local/share/pscanner/`. |
+| `bun test` | TS tests (`bun:test`) + Rust tests (`cargo test`). |
 
-Package manager: **bun** (lockfile `bun.lock`). Toolchain Rust: **cargo** (crate en `monitor/`).
+Package manager: **bun** (lockfile `bun.lock`). Rust toolchain: **cargo** (crate in `monitor/`).
 
-No hay paso de build TS: `bun run index.tsx` directamente. El binario Rust queda en `monitor/target/{debug,release}/portmon`.
+There is no TS build step: `bun run index.tsx` directly. The Rust binary lands in `monitor/target/{debug,release}/portmon`.
 
 ## Stack
 
 - **Runtime**: Bun (ESM, `"type": "module"`).
-- **UI**: [`@opentui/core`](https://github.com/anomalyco/opentui) + [`@opentui/react`](https://github.com/anomalyco/opentui) (bindings de React).
+- **UI**: [`@opentui/core`](https://github.com/anomalyco/opentui) + [`@opentui/react`](https://github.com/anomalyco/opentui) (React bindings).
 - **React**: v19.3.
-- **TypeScript**: 5.9, strict por convención.
-- **Monitor**: Rust (`netstat2` para sockets, `sysinfo` para nombres de proceso, `serde_json` para el protocolo).
+- **TypeScript**: 5.9, strict by convention.
+- **Monitor**: Rust (`netstat2` for sockets, `sysinfo` for process names, `serde_json` for the protocol).
 
-## Estructura
+## Structure
 
 ```
 .
-├── index.tsx               # Entry point: renderer + <App />, tabla de puertos
+├── index.tsx               # Entry point: renderer + <App />, ports table
 ├── scripts/                # Build/install orchestrators
-│   ├── install.ts          # `bun run install`: build release + bundle + link en ~/.local/bin
-│   └── uninstall.ts        # `bun run uninstall`: borra symlinks y ~/.local/share/pscanner
-├── monitor/                # Crate Rust: monitor de sockets (proceso hijo)
+│   ├── install.ts          # `bun run install`: release build + bundle + link in ~/.local/bin
+│   └── uninstall.ts        # `bun run uninstall`: removes symlinks and ~/.local/share/pscanner
+├── monitor/                # Rust crate: socket monitor (child process)
 │   ├── Cargo.toml
 │   └── src/
-│       ├── main.rs         # Loop principal: scan periódico + comandos stdin
-│       ├── proto.rs        # Protocolo NDJSON (Event/Command/PortEntry, serde)
-│       ├── scan.rs         # netstat2 → PortEntry (+ nombre vía sysinfo)
+│       ├── main.rs         # Main loop: periodic scan + stdin commands
+│       ├── proto.rs        # NDJSON protocol (Event/Command/PortEntry, serde)
+│       ├── scan.rs         # netstat2 → PortEntry (+ name via sysinfo)
 │       ├── diff.rs         # snapshot → delta (added/removed)
-│       └── kill.rs         # kill cross-platform (libc unix / windows-sys)
+│       └── kill.rs         # cross-platform kill (libc unix / windows-sys)
 ├── src/
 │   ├── monitor/
-│   │   ├── protocol.ts     # Tipos TS espejo de proto.rs
-│   │   ├── lines.ts        # Chunks → líneas NDJSON (buffer parcial)
-│   │   └── client.ts       # MonitorClient: spawn, parse, comandos, dispose
+│   │   ├── protocol.ts     # TS types mirroring proto.rs
+│   │   ├── lines.ts        # Chunks → NDJSON lines (partial buffer)
+│   │   └── client.ts       # MonitorClient: spawn, parse, commands, dispose
 │   ├── store.tsx           # MonitorProvider (Context+reducer) + usePorts()
-│   └── theme.ts            # Tokens de color/espaciado
-├── design.md               # Sistema de diseño (paleta, tokens, componentes)
-├── investigacion-puertos.md # Notas de investigación sobre puertos en macOS
-├── opencode.json           # Config de opencode (carga design.md como instrucciones)
+│   └── theme.ts            # Color/spacing tokens
+├── design.md               # Design system (palette, tokens, components)
+├── investigacion-puertos.md # Port research notes on macOS
+├── opencode.json           # opencode config (loads design.md as instructions)
 ├── package.json
 ├── bun.lock
 └── tsconfig.json
 ```
 
-## Backend Rust ↔ TUI
+## Rust backend ↔ TUI
 
-La TUI spawnea `monitor/target/debug/portmon` como proceso hijo (`Bun.spawn`). Comunicación **NDJSON**: eventos por stdout (`hello`/`snapshot`/`delta`/`ack`/`error`), comandos por stdin (`set_interval`/`set_filter`/`kill`/`shutdown`). Si stdin cierra (la TUI murió), el monitor sale solo. Para debuggear el monitor a mano:
+The TUI spawns `monitor/target/debug/portmon` as a child process (`Bun.spawn`). **NDJSON** communication: events over stdout (`hello`/`snapshot`/`delta`/`ack`/`error`), commands over stdin (`set_interval`/`set_filter`/`kill`/`shutdown`). If stdin closes (the TUI died), the monitor exits on its own. To debug the monitor manually:
 
 ```bash
 echo '{"cmd":"shutdown"}' | ./monitor/target/debug/portmon | jq
 ```
 
-Override del binario con `PORTMON_BIN`; usar release con `PORTMON_RELEASE=1`.
+Override the binary with `PORTMON_BIN`; use release with `PORTMON_RELEASE=1`.
 
-### Lookup chain de `resolveMonitorBin()` (`src/store.tsx`)
+### Lookup chain of `resolveMonitorBin()` (`src/store.tsx`)
 
-1. `PORTMON_BIN` (env var) — siempre prioridad.
-2. `~/.local/share/pscanner/portmon-<platform>-<arch>` — uso instalado (lo setea `bun run install`).
-3. `./monitor/target/{release|debug}/portmon` — fallback dev (path relativo).
-Los tipos TS (`src/monitor/protocol.ts`) son espejo manual de `monitor/src/proto.rs` — si cambia uno, cambiar el otro.
+1. `PORTMON_BIN` (env var) — always takes priority.
+2. `~/.local/share/pscanner/portmon-<platform>-<arch>` — installed use (set by `bun run install`).
+3. `./monitor/target/{release|debug}/portmon` — dev fallback (relative path).
 
-## Convenciones
+The TS types (`src/monitor/protocol.ts`) are a manual mirror of `monitor/src/proto.rs` — if one changes, change the other.
 
-- **Estilo**: minimal, sin frameworks de UI extra. Componentes React directamente con primitivas de OpenTUI (`<box>`, `<text>`).
-- **Props de estilo**: usar `style={{ ... }}` en camelCase (`backgroundColor`, `flexDirection`, `borderStyle`).
-- **ESM imports** sin extensión: `import { createCliRenderer } from "@opentui/core"`.
-- **Sin comentarios innecesarios** en el código.
-- **Tokens de color**: importar siempre desde `design.md` (vía opencode.json) — no hardcodear hex codes en componentes nuevos.
-- **Comandos del sistema**: para descubrir puertos se usa `lsof` (ver `investigacion-puertos.md`).
+## Conventions
 
-## Diseño
+- **Style**: minimal, no extra UI frameworks. React components directly with OpenTUI primitives (`<box>`, `<text>`).
+- **Style props**: use `style={{ ... }}` in camelCase (`backgroundColor`, `flexDirection`, `borderStyle`).
+- **ESM imports** without extension: `import { createCliRenderer } from "@opentui/core"`.
+- **No unnecessary comments** in code.
+- **Color tokens**: always import from `design.md` (via opencode.json) — do not hardcode hex codes in new components.
+- **System commands**: to discover ports we use `lsof` (see `investigacion-puertos.md`).
 
-El sistema visual completo está definido en [`design.md`](./design.md) y se carga automáticamente como instrucciones via `opencode.json`. Resumen rápido:
+## Design
 
-- Paleta: 8 colores fijos (`#51576c`, `#e98186`, `#a6d28a`, `#e6c890`, `#8caaec`, `#f2b9e5`, `#82c8be`, `#b5bfe2`).
-- Tipografía: monoespaciada (`JetBrains Mono`, `Fira Code`, etc.).
-- Fondo base: `colors.base` (`#51576c`). Acentos pastel solo en pequeñas dosis y con rol semántico.
-- Tamaño de texto predominante: 12–14px.
+The complete visual system is defined in [`design.md`](./design.md) and is automatically loaded as instructions via `opencode.json`. Quick summary:
 
-Antes de crear un componente o agregar un color, **consultar `design.md`**.
+- Palette: 8 fixed colors (`#51576c`, `#e98186`, `#a6d28a`, `#e6c890`, `#8caaec`, `#f2b9e5`, `#82c8be`, `#b5bfe2`).
+- Typography: monospaced (`JetBrains Mono`, `Fira Code`, etc.).
+- Base background: `colors.base` (`#51576c`). Pastel accents only in small doses and with a semantic role.
+- Predominant text size: 12–14px.
+
+Before creating a component or adding a color, **consult `design.md`**.
 
 ## Gotchas
 
-- `@opentui/react` requiere `await createCliRenderer()` antes de `createRoot(renderer).render(...)`.
-- `useKeyboard` consume el evento globalmente; cerrar con `renderer.destroy()` en `Esc`/`q`.
-- No introducir dependencias nuevas sin consensuar.
-- Mantener la app destructivable con `q` / `Esc` desde cualquier vista.
-- `console.log` dentro de la TUI no se ve en terminal: va al console overlay de OpenTUI (toggle con `renderer.console.toggle()`); el stderr del monitor Rust se forwardea ahí.
-- Nunca `process.exit()` directo: deja la terminal rota. Usar `renderer.destroy()`.
-- El monitor Rust detecta EOF en stdin y se cierra solo; aun así, `MonitorClient.dispose()` envía `shutdown` y hace `kill()` como fallback tras timeout.
+- `@opentui/react` requires `await createCliRenderer()` before `createRoot(renderer).render(...)`.
+- `useKeyboard` consumes the event globally; close with `renderer.destroy()` on `Esc`/`q`.
+- Do not introduce new dependencies without consensus.
+- Keep the app destructible with `q` / `Esc` from any view.
+- `console.log` inside the TUI is not visible in the terminal: it goes to the OpenTUI console overlay (toggle with `renderer.console.toggle()`); the Rust monitor's stderr is forwarded there.
+- Never `process.exit()` directly: it leaves the terminal broken. Use `renderer.destroy()`.
+- The Rust monitor detects EOF on stdin and closes on its own; still, `MonitorClient.dispose()` sends `shutdown` and `kill()`s as a fallback after timeout.
