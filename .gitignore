@@ -1,4 +1,7 @@
 node_modules/
 monitor/target/
 monitor/Cargo.lock
+dist/
 *.log
+*.bun-build
+.*.bun-build

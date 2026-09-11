@@ -1,6 +1,6 @@
 {
   "name": "PortScanner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "type": "module",
   "main": "index.tsx",
@@ -8,6 +8,8 @@
     "dev": "cargo build --manifest-path monitor/Cargo.toml && bun run index.tsx",
     "start": "bun run index.tsx",
     "build:monitor": "cargo build --release --manifest-path monitor/Cargo.toml",
+    "install": "bun run scripts/install.ts",
+    "uninstall": "bun run scripts/uninstall.ts",
     "test": "bun test && cargo test --manifest-path monitor/Cargo.toml"
   },
   "keywords": [],

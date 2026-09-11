@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { join } from "node:path"
+import { homedir } from "node:os"
 import { MonitorClient } from "./monitor/client"
 import { portKey, type MonitorEvent, type PortEntry } from "./monitor/protocol"
 
@@ -59,8 +61,23 @@ function sortPorts(ports: PortEntry[]): PortEntry[] {
 
 const MAX_AUTO_RESTARTS = 3
 
+export function installedMonitorPath(): string {
+  const exe = process.platform === "win32" ? "portmon.exe" : "portmon"
+  return join(
+    homedir(),
+    ".local",
+    "share",
+    "pscanner",
+    `${exe}-${process.platform}-${process.arch}`,
+  )
+}
+
 export function resolveMonitorBin(): string {
   if (process.env.PORTMON_BIN) return process.env.PORTMON_BIN
+  const installed = installedMonitorPath()
+  try {
+    if (Bun.file(installed).size > 0) return installed
+  } catch {}
   const exe = process.platform === "win32" ? "portmon.exe" : "portmon"
   const profile = process.env.PORTMON_RELEASE ? "release" : "debug"
   return `monitor/target/${profile}/${exe}`
