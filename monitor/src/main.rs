@@ -1,3 +1,4 @@
+mod containers;
 mod diff;
 mod kill;
 mod proto;
@@ -13,8 +14,9 @@ use std::time::Duration;
 use proto::{Command, Event, Filter};
 use scan::Scanner;
 use stats::StatsCollector;
+use containers::ContainerStore;
 
-const PROTOCOL_VERSION: u32 = 3;
+const PROTOCOL_VERSION: u32 = 4;
 const DEFAULT_INTERVAL_MS: u64 = 1000;
 const MIN_INTERVAL_MS: u64 = 50;
 
@@ -59,6 +61,7 @@ fn main() {
     let mut differ = diff::Diff::new();
     let mut scanner = Scanner::new();
     let mut stats = StatsCollector::new();
+    let mut container_store = ContainerStore::new();
     let mut seq: u64 = 0;
 
     emit(&Event::Hello {
@@ -69,6 +72,7 @@ fn main() {
     loop {
         match scanner.scan() {
             Ok(ports) => {
+                let ports = container_store.attach(ports);
                 let ports = filter.apply(ports);
                 seq += 1;
                 if differ.is_first() {
@@ -84,6 +88,12 @@ fn main() {
                 }
             }
             Err(e) => emit(&Event::Error { message: e }),
+        }
+
+        if container_store.poll() {
+            emit(&Event::ContainersUpdated {
+                containers: container_store.snapshot(),
+            });
         }
 
         emit(&Event::Stats {
@@ -121,6 +131,18 @@ fn main() {
                     pid,
                     ok,
                     terminal,
+                    error,
+                });
+            }
+            Ok(Command::StopContainer { id }) => {
+                let (ok, error) = match container_store.stop(&id) {
+                    Ok(()) => (true, None),
+                    Err(e) => (false, Some(e)),
+                };
+                emit(&Event::Ack {
+                    cmd: "stop_container".into(),
+                    pid: None,
+                    ok,
                     error,
                 });
             }

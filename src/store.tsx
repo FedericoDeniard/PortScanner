@@ -12,6 +12,7 @@ import { homedir } from "node:os"
 import { MonitorClient } from "./monitor/client"
 import {
   portKey,
+  type ContainerInfo,
   type MonitorEvent,
   type PortEntry,
   type SystemStats,
@@ -24,6 +25,7 @@ export type PortsState = {
   status: MonitorStatus
   seq: number
   stats?: SystemStats
+  containers: ContainerInfo[]
   error?: string
   notice?: string
 }
@@ -33,6 +35,7 @@ export type PortsAction =
   | { type: "SNAPSHOT"; seq: number; ports: PortEntry[] }
   | { type: "DELTA"; seq: number; added: PortEntry[]; removed: PortEntry[] }
   | { type: "STATS"; stats: SystemStats }
+  | { type: "CONTAINERS_UPDATED"; containers: ContainerInfo[] }
   | { type: "NOTICE"; notice?: string }
   | { type: "ERROR"; error: string }
 
@@ -45,21 +48,65 @@ export function portsReducer(state: PortsState, action: PortsAction): PortsState
         ...state,
         status: "ready",
         error: undefined,
-        ports: sortPorts(action.ports),
+        ports: applyContainerEnrichment(state.containers, sortPorts(action.ports)),
         seq: action.seq,
       }
     case "DELTA": {
       const removed = new Set(action.removed.map(portKey))
       const kept = state.ports.filter((p) => !removed.has(portKey(p)))
-      return { ...state, ports: sortPorts([...kept, ...action.added]), seq: action.seq }
+      return {
+        ...state,
+        ports: applyContainerEnrichment(
+          state.containers,
+          sortPorts([...kept, ...action.added]),
+        ),
+        seq: action.seq,
+      }
     }
     case "STATS":
       return { ...state, stats: action.stats }
+    case "CONTAINERS_UPDATED":
+      return {
+        ...state,
+        containers: action.containers,
+        ports: applyContainerEnrichment(action.containers, state.ports),
+      }
     case "NOTICE":
       return { ...state, notice: action.notice }
     case "ERROR":
       return { ...state, status: "error", error: action.error }
   }
+}
+
+export function applyContainerEnrichment(
+  containers: ContainerInfo[],
+  ports: PortEntry[],
+): PortEntry[] {
+  if (containers.length === 0) return ports
+  const indexByHostPort = new Map<string, { id: string; containerPort: number }>()
+  for (const c of containers) {
+    for (const cp of c.ports ?? []) {
+      indexByHostPort.set(`${cp.protocol}:${cp.hostPort}`, {
+        id: c.id,
+        containerPort: cp.containerPort,
+      })
+    }
+  }
+  return ports.map((p) => {
+    if (p.category !== "container") return p
+    if (p.containerId && p.containerName && p.containerImage) return p
+    const lookup = indexByHostPort.get(`${p.protocol}:${p.localPort}`)
+    if (!lookup) return p
+    const c = containers.find((x) => x.id.startsWith(lookup.id) || x.id === lookup.id)
+    if (!c) return p
+    return {
+      ...p,
+      containerId: c.id,
+      containerName: c.name,
+      containerImage: c.image,
+      containerPort: lookup.containerPort,
+    }
+  })
 }
 
 function sortPorts(ports: PortEntry[]): PortEntry[] {
@@ -95,6 +142,7 @@ export function resolveMonitorBin(): string {
 type StoreValue = {
   state: PortsState
   killProcess: (pid: number, signal?: "term" | "kill") => void
+  stopContainer: (id: string) => void
   openTerminal: (pid: number, cwd?: string) => void
   restart: () => void
 }
@@ -106,6 +154,7 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
     ports: [],
     status: "connecting",
     seq: 0,
+    containers: [],
   })
   const [generation, setGeneration] = useState(0)
   const clientRef = useRef<MonitorClient | null>(null)
@@ -145,6 +194,9 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
             break
           case "stats":
             dispatch({ type: "STATS", stats: evt.stats })
+            break
+          case "containersupdated":
+            dispatch({ type: "CONTAINERS_UPDATED", containers: evt.containers })
             break
           case "ack":
             if (!evt.ok) dispatch({ type: "NOTICE", notice: evt.error ?? "command failed" })
@@ -197,6 +249,7 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
   const value: StoreValue = {
     state,
     killProcess: (pid, signal) => clientRef.current?.killProcess(pid, signal),
+    stopContainer: (id) => clientRef.current?.stopContainer(id),
     openTerminal: (pid, cwd) => clientRef.current?.openTerminal(pid, cwd),
     restart: () => {
       restartsRef.current = 0

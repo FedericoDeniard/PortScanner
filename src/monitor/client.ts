@@ -109,6 +109,10 @@ export class MonitorClient {
     this.send({ cmd: "kill", pid, signal })
   }
 
+  stopContainer(id: string) {
+    this.send({ cmd: "stop_container", id })
+  }
+
   openTerminal(pid: number, cwd?: string) {
     this.send({ cmd: "open_terminal", pid, cwd })
   }

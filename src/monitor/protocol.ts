@@ -1,6 +1,6 @@
 export type Protocol = "tcp" | "udp"
 
-export type Category = "system" | "user-app" | "user-dev"
+export type Category = "system" | "user-app" | "user-dev" | "container"
 
 export type PortEntry = {
   protocol: Protocol
@@ -15,7 +15,25 @@ export type PortEntry = {
   cwd?: string
   parentPid?: number
   parentName?: string
+  containerRuntime?: string
+  containerId?: string
+  containerName?: string
+  containerImage?: string
+  containerPort?: number
   category: Category
+}
+
+export type ContainerPort = {
+  hostPort: number
+  containerPort: number
+  protocol: string
+}
+
+export type ContainerInfo = {
+  id: string
+  name: string
+  image: string
+  ports?: ContainerPort[]
 }
 
 export type SystemStats = {
@@ -46,12 +64,14 @@ export type MonitorEvent =
     }
   | { type: "error"; message: string }
   | { type: "stats"; stats: SystemStats }
+  | { type: "containersupdated"; containers: ContainerInfo[] }
 
 export type MonitorCommand =
   | { cmd: "set_interval"; ms: number }
   | { cmd: "set_filter"; protocols?: Protocol[]; states?: string[] }
   | { cmd: "kill"; pid: number; signal?: "term" | "kill" }
   | { cmd: "open_terminal"; pid: number; cwd?: string }
+  | { cmd: "stop_container"; id: string }
   | { cmd: "shutdown" }
 
 export const portKey = (p: PortEntry): string =>

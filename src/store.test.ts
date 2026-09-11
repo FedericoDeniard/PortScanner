@@ -1,12 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { portsReducer, type PortsState } from "./store"
-import type { Category, PortEntry } from "./monitor/protocol"
+import {
+  applyContainerEnrichment,
+  portsReducer,
+  type PortsState,
+} from "./store"
+import type { Category, ContainerInfo, PortEntry } from "./monitor/protocol"
 
 const entry = (
   port: number,
   pid: number,
   protocol: "tcp" | "udp" = "tcp",
   category: Category = "user-dev",
+  overrides: Partial<PortEntry> = {},
 ): PortEntry => ({
   protocol,
   localAddr: "*",
@@ -14,9 +19,15 @@ const entry = (
   state: "LISTEN",
   pid,
   category,
+  ...overrides,
 })
 
-const base: PortsState = { ports: [], status: "connecting", seq: 0 }
+const base: PortsState = {
+  ports: [],
+  status: "connecting",
+  seq: 0,
+  containers: [],
+}
 
 describe("portsReducer", () => {
   test("READY flips status and clears error", () => {
@@ -119,5 +130,107 @@ describe("portsReducer", () => {
       [7000, "system"],
       [8080, "system"],
     ])
+  })
+
+  test("CONTAINERS_UPDATED enriches existing container entries by host port", () => {
+    const snapshot = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [
+        entry(8000, 99, "tcp", "container", {
+          processName: "OrbStack Helper",
+          containerRuntime: "orbstack",
+        }),
+      ],
+    })
+    const containers: ContainerInfo[] = [
+      {
+        id: "abc123def456",
+        name: "supabase_kong",
+        image: "kong:2.8.1",
+        ports: [{ hostPort: 8000, containerPort: 8000, protocol: "tcp" }],
+      },
+    ]
+    const next = portsReducer(snapshot, {
+      type: "CONTAINERS_UPDATED",
+      containers,
+    })
+    expect(next.containers).toEqual(containers)
+    expect(next.ports[0]).toMatchObject({
+      containerId: "abc123def456",
+      containerName: "supabase_kong",
+      containerImage: "kong:2.8.1",
+      containerPort: 8000,
+    })
+  })
+
+  test("CONTAINERS_UPDATED leaves non-container entries alone", () => {
+    const snapshot = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [entry(3000, 1, "tcp", "user-dev")],
+    })
+    const next = portsReducer(snapshot, {
+      type: "CONTAINERS_UPDATED",
+      containers: [
+        {
+          id: "abc",
+          name: "n",
+          image: "i",
+          ports: [{ hostPort: 3000, containerPort: 3000, protocol: "tcp" }],
+        },
+      ],
+    })
+    expect(next.ports[0]).not.toHaveProperty("containerId")
+  })
+})
+
+describe("applyContainerEnrichment", () => {
+  test("returns ports unchanged when no containers known", () => {
+    const ports: PortEntry[] = [
+      entry(8000, 1, "tcp", "container"),
+    ]
+    expect(applyContainerEnrichment([], ports)).toBe(ports)
+  })
+
+  test("matches by host port and protocol", () => {
+    const ports: PortEntry[] = [
+      entry(8000, 1, "tcp", "container"),
+    ]
+    const out = applyContainerEnrichment(
+      [
+        {
+          id: "abc123def456",
+          name: "kong",
+          image: "kong:2.8.1",
+          ports: [{ hostPort: 8000, containerPort: 8000, protocol: "tcp" }],
+        },
+      ],
+      ports,
+    )
+    expect(out[0]?.containerId).toBe("abc123def456")
+    expect(out[0]?.containerName).toBe("kong")
+    expect(out[0]?.containerPort).toBe(8000)
+  })
+
+  test("matches on container id prefix (short id from server vs full)", () => {
+    const ports: PortEntry[] = [
+      entry(5432, 1, "tcp", "container", {
+        containerId: "abc123def456",
+        containerName: "kong",
+      }),
+    ]
+    const out = applyContainerEnrichment(
+      [
+        {
+          id: "abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          name: "kong",
+          image: "kong:2.8.1",
+          ports: [{ hostPort: 5432, containerPort: 5432, protocol: "tcp" }],
+        },
+      ],
+      ports,
+    )
+    expect(out[0]?.containerImage).toBe("kong:2.8.1")
   })
 })
