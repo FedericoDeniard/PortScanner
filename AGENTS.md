@@ -9,6 +9,9 @@ Visualizador/escaner de puertos TCP/UDP en uso en la máquina local, construido 
 | `bun run dev` | Compila el monitor Rust (debug) y ejecuta la TUI. |
 | `bun start` | Ejecuta la TUI (requiere el binario ya compilado). |
 | `bun run build:monitor` | Compila el monitor Rust en release. |
+| `bun run install` | Build completo (Rust release + TUI self-contained) e instala `pscanner` en `~/.local/bin`. |
+| `pscanner-update` | Re-corre el install (lee `sourceDir` de `~/.local/share/pscanner/config.json`). |
+| `bun run uninstall` | Borra symlinks en `~/.local/bin` y `~/.local/share/pscanner/`. |
 | `bun test` | Tests TS (`bun:test`) + tests Rust (`cargo test`). |
 
 Package manager: **bun** (lockfile `bun.lock`). Toolchain Rust: **cargo** (crate en `monitor/`).
@@ -28,6 +31,9 @@ No hay paso de build TS: `bun run index.tsx` directamente. El binario Rust queda
 ```
 .
 ├── index.tsx               # Entry point: renderer + <App />, tabla de puertos
+├── scripts/                # Build/install orchestrators
+│   ├── install.ts          # `bun run install`: build release + bundle + link en ~/.local/bin
+│   └── uninstall.ts        # `bun run uninstall`: borra symlinks y ~/.local/share/pscanner
 ├── monitor/                # Crate Rust: monitor de sockets (proceso hijo)
 │   ├── Cargo.toml
 │   └── src/
@@ -60,6 +66,12 @@ echo '{"cmd":"shutdown"}' | ./monitor/target/debug/portmon | jq
 ```
 
 Override del binario con `PORTMON_BIN`; usar release con `PORTMON_RELEASE=1`.
+
+### Lookup chain de `resolveMonitorBin()` (`src/store.tsx`)
+
+1. `PORTMON_BIN` (env var) — siempre prioridad.
+2. `~/.local/share/pscanner/portmon-<platform>-<arch>` — uso instalado (lo setea `bun run install`).
+3. `./monitor/target/{release|debug}/portmon` — fallback dev (path relativo).
 Los tipos TS (`src/monitor/protocol.ts`) son espejo manual de `monitor/src/proto.rs` — si cambia uno, cambiar el otro.
 
 ## Convenciones

@@ -222,7 +222,7 @@ function Dashboard() {
 
   return (
     <box
-      title="portscanner"
+      title="pscanner"
       titleAlignment="left"
       style={{
         width: "100%",
@@ -254,6 +254,22 @@ function App() {
       <Dashboard />
     </MonitorProvider>
   )
+}
+
+const VERSION =
+  process.env.PORTSCANNER_VERSION ??
+  (await Bun.file(import.meta.dir + "/package.json")
+    .json()
+    .then((p: unknown) =>
+      typeof p === "object" && p !== null && "version" in p
+        ? String((p as { version: unknown }).version)
+        : "0.0.0",
+    )
+    .catch(() => "0.0.0"))
+
+if (process.argv.includes("--version") || process.argv.includes("-V")) {
+  process.stdout.write(`pscanner ${VERSION}\n`)
+  process.exit(0)
 }
 
 const renderer = await createCliRenderer({ exitOnCtrlC: false })
