@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -10,10 +10,13 @@ use crate::proto::{Category, PortEntry, Protocol};
 
 const LSOF_CACHE_TTL: Duration = Duration::from_secs(60);
 const LSOF_CACHE_TTL_FAILED: Duration = Duration::from_secs(5);
+const PARENT_CACHE_TTL: Duration = Duration::from_secs(30);
+const MAX_PARENT_WALK: usize = 12;
 
 pub struct Scanner {
     system: System,
     cwd_cache: HashMap<u32, (Instant, Option<String>)>,
+    parent_cache: HashMap<u32, (Instant, Option<(u32, String)>)>,
 }
 
 impl Scanner {
@@ -21,6 +24,7 @@ impl Scanner {
         Self {
             system: System::new(),
             cwd_cache: HashMap::new(),
+            parent_cache: HashMap::new(),
         }
     }
 
@@ -44,6 +48,8 @@ impl Scanner {
                     process_name: None,
                     exe: None,
                     cwd: None,
+                    parent_pid: None,
+                    parent_name: None,
                     category: Category::UserApp,
                 }),
                 ProtocolSocketInfo::Udp(udp) => out.push(PortEntry {
@@ -57,6 +63,8 @@ impl Scanner {
                     process_name: None,
                     exe: None,
                     cwd: None,
+                    parent_pid: None,
+                    parent_name: None,
                     category: Category::UserApp,
                 }),
             }
@@ -75,6 +83,12 @@ impl Scanner {
                     if entry.cwd.is_none() && entry.category != Category::System {
                         entry.cwd = self.resolve_cwd(pid);
                     }
+                    let (ppid, pname) = self
+                        .resolve_app_parent(pid)
+                        .map(|(p, n)| (Some(p), Some(n)))
+                        .unwrap_or((None, None));
+                    entry.parent_pid = ppid;
+                    entry.parent_name = pname;
                 }
             }
         }
@@ -85,6 +99,60 @@ impl Scanner {
                 .then(a.protocol.cmp(&b.protocol))
         });
         Ok(out)
+    }
+
+    fn resolve_app_parent(&mut self, pid: u32) -> Option<(u32, String)> {
+        let now = Instant::now();
+        if let Some((at, cached)) = self.parent_cache.get(&pid) {
+            if now.duration_since(*at) < PARENT_CACHE_TTL {
+                return cached.clone();
+            }
+        }
+        let resolved = self.resolve_app_parent_inner(pid);
+        self.parent_cache.insert(pid, (now, resolved.clone()));
+        resolved
+    }
+
+    fn resolve_app_parent_inner(&self, pid: u32) -> Option<(u32, String)> {
+        let mut current_pid = pid;
+        let mut current_bundle: Option<PathBuf> = self
+            .system
+            .process(Pid::from_u32(current_pid))
+            .and_then(|p| p.exe().map(|e| e.to_path_buf()))
+            .as_deref()
+            .and_then(app_bundle_root)
+            .map(|p| p.to_path_buf());
+
+        let mut visited: HashSet<u32> = HashSet::new();
+        visited.insert(current_pid);
+
+        for _ in 0..MAX_PARENT_WALK {
+            let proc = self.system.process(Pid::from_u32(current_pid))?;
+            let parent_pid = proc.parent()?.as_u32();
+            if parent_pid <= 1 || parent_pid == current_pid || !visited.insert(parent_pid) {
+                return None;
+            }
+            let parent = self.system.process(Pid::from_u32(parent_pid))?;
+            let parent_name = parent.name().to_string_lossy().into_owned();
+            let parent_bundle = parent
+                .exe()
+                .map(|e| e.to_path_buf())
+                .as_deref()
+                .and_then(app_bundle_root)
+                .map(|p| p.to_path_buf());
+
+            match (&current_bundle, &parent_bundle) {
+                (Some(cb), Some(pb)) if cb == pb => {
+                    if !name_is_helper(&parent_name) {
+                        return Some((parent_pid, parent_name));
+                    }
+                    current_pid = parent_pid;
+                    current_bundle = Some(pb.clone());
+                }
+                _ => return Some((parent_pid, parent_name)),
+            }
+        }
+        None
     }
 
     fn resolve_cwd(&mut self, pid: u32) -> Option<String> {
@@ -146,6 +214,37 @@ fn classify(exe: Option<&Path>) -> Category {
     }
 }
 
+fn app_bundle_root(exe: &Path) -> Option<PathBuf> {
+    let mut outermost: Option<PathBuf> = None;
+    for ancestor in exe.ancestors() {
+        if ancestor.extension().and_then(|e| e.to_str()) == Some("app") {
+            outermost = Some(ancestor.to_path_buf());
+        }
+    }
+    outermost
+}
+
+fn name_is_helper(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let lower = name.to_ascii_lowercase();
+    for suffix in [
+        " helper (renderer)",
+        " helper (gpu)",
+        " helper (plugin)",
+        " helper",
+        " gpu process",
+        " renderer",
+        " utility",
+    ] {
+        if lower.ends_with(suffix) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +302,44 @@ mod tests {
     fn fallback_when_path_unknown() {
         assert_eq!(classify(None), Category::UserApp);
         assert_eq!(classify(Some(&PathBuf::from(""))), Category::UserApp);
+    }
+
+    #[test]
+    fn app_bundle_root_macos() {
+        let exe = PathBuf::from(
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome Helper (Renderer)",
+        );
+        assert_eq!(
+            app_bundle_root(&exe),
+            Some(PathBuf::from("/Applications/Google Chrome.app"))
+        );
+    }
+
+    #[test]
+    fn app_bundle_root_walks_past_nested_helper_bundle() {
+        let exe = PathBuf::from(
+            "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/152.0.7977.76/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper",
+        );
+        assert_eq!(
+            app_bundle_root(&exe),
+            Some(PathBuf::from("/Applications/Google Chrome.app"))
+        );
+    }
+
+    #[test]
+    fn app_bundle_root_returns_none_outside_macos() {
+        let exe = PathBuf::from("/usr/bin/node");
+        assert_eq!(app_bundle_root(&exe), None);
+    }
+
+    #[test]
+    fn name_is_helper_detects_helper_variants() {
+        assert!(name_is_helper("Google Chrome Helper"));
+        assert!(name_is_helper("Google Chrome Helper (Renderer)"));
+        assert!(name_is_helper("Google Chrome Helper (GPU)"));
+        assert!(name_is_helper("node GPU Process"));
+        assert!(!name_is_helper("Google Chrome"));
+        assert!(!name_is_helper("Spotify"));
+        assert!(!name_is_helper(""));
     }
 }

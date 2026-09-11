@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::stats::SystemStats;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
@@ -35,6 +37,10 @@ pub struct PortEntry {
     pub exe: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_pid: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_name: Option<String>,
     pub category: Category,
 }
 
@@ -78,6 +84,9 @@ pub enum Event {
     },
     Error {
         message: String,
+    },
+    Stats {
+        stats: SystemStats,
     },
 }
 
@@ -145,6 +154,8 @@ mod tests {
             process_name: Some("node".into()),
             exe: None,
             cwd: None,
+            parent_pid: None,
+            parent_name: None,
             category: Category::UserDev,
         }
     }
@@ -271,6 +282,54 @@ mod tests {
         let parsed: PortEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.cwd.as_deref(), Some("/Users/fede/projects/hub"));
         assert_eq!(parsed.exe.as_deref(), Some("/Users/fede/.nvm/versions/node/.../bin/node"));
+    }
+
+    #[test]
+    fn event_stats_roundtrip_skips_optional_fields() {
+        let stats = SystemStats {
+            host_label: "MacBook Air".into(),
+            chip: "Apple M1".into(),
+            gpu_cores: Some(7),
+            total_memory_bytes: 8 * 1024 * 1024 * 1024,
+            total_disk_bytes: 228 * 1024 * 1024 * 1024,
+            os_version: "macOS 26.6.2".into(),
+            battery_health_pct: None,
+            battery_charge_pct: None,
+            battery_state: None,
+            uptime_secs: 6 * 86400 + 22 * 3600,
+            collected_at_ms: 1_700_000_000_000,
+        };
+        let evt = Event::Stats { stats };
+        let json = serde_json::to_string(&evt).unwrap();
+        assert!(json.contains("\"type\":\"stats\""));
+        assert!(json.contains("\"hostLabel\":\"MacBook Air\""));
+        assert!(json.contains("\"gpuCores\":7"));
+        assert!(json.contains("\"uptimeSecs\":"));
+        assert!(!json.contains("\"batteryHealthPct\""));
+        assert!(!json.contains("\"batteryChargePct\""));
+        assert!(!json.contains("\"batteryState\""));
+    }
+
+    #[test]
+    fn event_stats_roundtrip_includes_battery() {
+        let stats = SystemStats {
+            host_label: "MacBook Pro".into(),
+            chip: "Apple M3 Pro".into(),
+            gpu_cores: Some(18),
+            total_memory_bytes: 18 * 1024 * 1024 * 1024,
+            total_disk_bytes: 512 * 1024 * 1024 * 1024,
+            os_version: "macOS 26.6.2".into(),
+            battery_health_pct: Some(79),
+            battery_charge_pct: Some(41),
+            battery_state: Some("discharging".into()),
+            uptime_secs: 3600,
+            collected_at_ms: 1_700_000_000_000,
+        };
+        let evt = Event::Stats { stats };
+        let json = serde_json::to_string(&evt).unwrap();
+        assert!(json.contains("\"batteryHealthPct\":79"));
+        assert!(json.contains("\"batteryChargePct\":41"));
+        assert!(json.contains("\"batteryState\":\"discharging\""));
     }
 
     #[test]

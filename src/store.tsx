@@ -10,7 +10,12 @@ import {
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { MonitorClient } from "./monitor/client"
-import { portKey, type MonitorEvent, type PortEntry } from "./monitor/protocol"
+import {
+  portKey,
+  type MonitorEvent,
+  type PortEntry,
+  type SystemStats,
+} from "./monitor/protocol"
 
 export type MonitorStatus = "connecting" | "ready" | "error"
 
@@ -18,6 +23,7 @@ export type PortsState = {
   ports: PortEntry[]
   status: MonitorStatus
   seq: number
+  stats?: SystemStats
   error?: string
   notice?: string
 }
@@ -26,6 +32,7 @@ export type PortsAction =
   | { type: "READY" }
   | { type: "SNAPSHOT"; seq: number; ports: PortEntry[] }
   | { type: "DELTA"; seq: number; added: PortEntry[]; removed: PortEntry[] }
+  | { type: "STATS"; stats: SystemStats }
   | { type: "NOTICE"; notice?: string }
   | { type: "ERROR"; error: string }
 
@@ -46,6 +53,8 @@ export function portsReducer(state: PortsState, action: PortsAction): PortsState
       const kept = state.ports.filter((p) => !removed.has(portKey(p)))
       return { ...state, ports: sortPorts([...kept, ...action.added]), seq: action.seq }
     }
+    case "STATS":
+      return { ...state, stats: action.stats }
     case "NOTICE":
       return { ...state, notice: action.notice }
     case "ERROR":
@@ -133,6 +142,9 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
             break
           case "delta":
             dispatch({ type: "DELTA", seq: evt.seq, added: evt.added, removed: evt.removed })
+            break
+          case "stats":
+            dispatch({ type: "STATS", stats: evt.stats })
             break
           case "ack":
             if (!evt.ok) dispatch({ type: "NOTICE", notice: evt.error ?? "command failed" })

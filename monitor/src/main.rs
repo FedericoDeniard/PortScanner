@@ -2,6 +2,7 @@ mod diff;
 mod kill;
 mod proto;
 mod scan;
+mod stats;
 mod terminal;
 
 use std::io::{BufRead, BufReader, Write};
@@ -11,6 +12,7 @@ use std::time::Duration;
 
 use proto::{Command, Event, Filter};
 use scan::Scanner;
+use stats::StatsCollector;
 
 const PROTOCOL_VERSION: u32 = 3;
 const DEFAULT_INTERVAL_MS: u64 = 1000;
@@ -56,6 +58,7 @@ fn main() {
     let mut filter = Filter::default();
     let mut differ = diff::Diff::new();
     let mut scanner = Scanner::new();
+    let mut stats = StatsCollector::new();
     let mut seq: u64 = 0;
 
     emit(&Event::Hello {
@@ -82,6 +85,10 @@ fn main() {
             }
             Err(e) => emit(&Event::Error { message: e }),
         }
+
+        emit(&Event::Stats {
+            stats: stats.snapshot(),
+        });
 
         match rx.recv_timeout(interval) {
             Ok(Command::SetInterval { ms }) => {

@@ -13,7 +13,23 @@ export type PortEntry = {
   processName?: string
   exe?: string
   cwd?: string
+  parentPid?: number
+  parentName?: string
   category: Category
+}
+
+export type SystemStats = {
+  hostLabel: string
+  chip: string
+  gpuCores?: number
+  totalMemoryBytes: number
+  totalDiskBytes: number
+  osVersion: string
+  batteryHealthPct?: number
+  batteryChargePct?: number
+  batteryState?: string
+  uptimeSecs: number
+  collectedAtMs: number
 }
 
 export type MonitorEvent =
@@ -29,6 +45,7 @@ export type MonitorEvent =
       error?: string
     }
   | { type: "error"; message: string }
+  | { type: "stats"; stats: SystemStats }
 
 export type MonitorCommand =
   | { cmd: "set_interval"; ms: number }
