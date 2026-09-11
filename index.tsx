@@ -1,11 +1,16 @@
 import { createCliRenderer, type ScrollBoxRenderable } from "@opentui/core"
-import { createRoot, useKeyboard, useRenderer } from "@opentui/react"
+import { createRoot, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { MonitorProvider, usePorts } from "./src/store"
 import { portKey, type Category, type PortEntry } from "./src/monitor/protocol"
 import { groupPorts, ownerOf, type Group } from "./src/grouping"
 import { colors } from "./src/theme"
 import { PixelCat } from "./src/mascot/PixelCat"
+import {
+  formatBytes,
+  formatChipWithGpu,
+  formatUptime,
+} from "./src/stats/format"
 
 const STATUS_COLOR = {
   connecting: colors.yellow,
@@ -70,17 +75,140 @@ function truncateCwd(cwd: string | undefined, max = 40): string {
   return "…" + cwd.slice(cwd.length - (max - 1))
 }
 
+type Span = { text: string; fg: string }
+
+type Segment = { spans: Span[]; dropRank?: number }
+
+const SEP = " · "
+const CHROME_WIDTH = 6
+
+function lineLength(segments: Segment[]): number {
+  let len = 0
+  for (const s of segments) {
+    for (const sp of s.spans) len += sp.text.length
+  }
+  return len + Math.max(0, segments.length - 1) * SEP.length
+}
+
+function fitSegments(segments: Segment[], budget: number): Span[][] {
+  const kept = [...segments]
+  while (lineLength(kept) > budget) {
+    const droppable = kept
+      .map((s, i) => ({ rank: s.dropRank, i }))
+      .filter((x): x is { rank: number; i: number } => x.rank != null)
+      .sort((a, b) => a.rank - b.rank)[0]
+    if (!droppable) break
+    kept.splice(droppable.i, 1)
+  }
+  return kept.map((s) => s.spans)
+}
+
+function StatusLine({ segments }: { segments: Span[][] }) {
+  const spans: Span[] = []
+  for (let i = 0; i < segments.length; i++) {
+    if (i > 0) spans.push({ text: SEP, fg: colors.base })
+    spans.push(...segments[i]!)
+  }
+  return (
+    <text>
+      {spans.map((s, i) => (
+        <span key={i} fg={s.fg}>
+          {s.text}
+        </span>
+      ))}
+    </text>
+  )
+}
+
 function Header() {
   const { state } = usePorts()
+  const { width } = useTerminalDimensions()
+  const stats = state.stats
+  const statusColor = STATUS_COLOR[state.status]
+
+  const statusText = state.status === "ready" ? "●" : `● ${state.status}`
+  const statusSeg: Segment = { spans: [{ text: statusText, fg: statusColor }] }
+
+  if (!stats) {
+    const segments: Span[][] = [
+      statusSeg.spans,
+      [
+        { text: "ports ", fg: colors.base },
+        { text: String(state.ports.length), fg: colors.lavender },
+      ],
+      [
+        { text: "seq ", fg: colors.base },
+        { text: String(state.seq), fg: colors.lavender },
+      ],
+    ]
+    if (state.error) segments.push([{ text: state.error, fg: colors.red }])
+    return <StatusLine segments={segments} />
+  }
+
+  const batteryState = stats.batteryState?.toLowerCase()
+  const batteryPct = stats.batteryChargePct ?? stats.batteryHealthPct
+
+  const segments: Segment[] = [
+    statusSeg,
+    { spans: [{ text: stats.hostLabel || "—", fg: colors.pink }] },
+    {
+      spans: [
+        { text: formatChipWithGpu(stats.chip, stats.gpuCores), fg: colors.lavender },
+      ],
+      dropRank: 3,
+    },
+    {
+      spans: [{ text: stats.osVersion, fg: colors.teal }],
+      dropRank: 1,
+    },
+    {
+      spans: [
+        { text: "ram ", fg: colors.base },
+        { text: formatBytes(stats.totalMemoryBytes), fg: colors.lavender },
+      ],
+    },
+    {
+      spans: [
+        { text: "disk ", fg: colors.base },
+        { text: formatBytes(stats.totalDiskBytes), fg: colors.lavender },
+      ],
+      dropRank: 4,
+    },
+    {
+      spans: [
+        { text: "up ", fg: colors.base },
+        { text: formatUptime(stats.uptimeSecs), fg: colors.lavender },
+      ],
+      dropRank: 2,
+    },
+  ]
+
+  if (batteryPct != null) {
+    const battSpans: Span[] = [
+      { text: "batt ", fg: colors.base },
+      { text: `${batteryPct}%`, fg: colors.lavender },
+    ]
+    if (
+      batteryState &&
+      (batteryState === "charging" || batteryState === "full")
+    ) {
+      battSpans.push({ text: ` ${batteryState}`, fg: colors.teal })
+    }
+    segments.push({ spans: battSpans })
+  }
+
+  segments.push({
+    spans: [
+      { text: "ports ", fg: colors.base },
+      { text: String(state.ports.length), fg: colors.lavender },
+    ],
+  })
+  if (state.error) {
+    segments.push({ spans: [{ text: state.error, fg: colors.red }] })
+  }
+
   return (
-    <box style={{ flexDirection: "row", gap: 2 }}>
-      <text fg={STATUS_COLOR[state.status]}>● {state.status}</text>
-      <text fg={colors.base}>ports</text>
-      <text fg={colors.lavender}>{state.ports.length}</text>
-      <text fg={colors.base}>seq</text>
-      <text fg={colors.lavender}>{state.seq}</text>
-      {state.error ? <text fg={colors.red}>{state.error}</text> : null}
-    </box>
+    <StatusLine segments={fitSegments(segments, width - CHROME_WIDTH)} />
   )
 }
 

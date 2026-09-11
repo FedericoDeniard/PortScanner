@@ -66,6 +66,8 @@ mod tests {
             process_name: None,
             exe: None,
             cwd: None,
+            parent_pid: None,
+            parent_name: None,
             category: Category::UserApp,
         }
     }
