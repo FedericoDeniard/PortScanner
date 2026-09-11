@@ -3,7 +3,9 @@ import { createRoot, useKeyboard, useRenderer } from "@opentui/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { MonitorProvider, usePorts } from "./src/store"
 import { portKey, type Category, type PortEntry } from "./src/monitor/protocol"
+import { groupPorts, ownerOf, type Group } from "./src/grouping"
 import { colors } from "./src/theme"
+import { PixelCat } from "./src/mascot/PixelCat"
 
 const STATUS_COLOR = {
   connecting: colors.yellow,
@@ -17,6 +19,23 @@ const TAB_META: Record<Category, { label: string; hint: string }> = {
   "user-dev": { label: "Dev", hint: "levantados por el usuario" },
   "user-app": { label: "Apps", hint: "apps en background" },
   system: { label: "System", hint: "macOS — no tocar" },
+}
+
+type Row =
+  | { kind: "header"; group: Group }
+  | { kind: "child"; port: PortEntry; groupKey: string }
+
+function buildRows(groups: Group[], collapsed: Set<string>): Row[] {
+  const out: Row[] = []
+  for (const g of groups) {
+    out.push({ kind: "header", group: g })
+    if (!collapsed.has(g.key)) {
+      for (const c of g.children) {
+        out.push({ kind: "child", port: c, groupKey: g.key })
+      }
+    }
+  }
+  return out
 }
 
 function stateColor(state?: string): string {
@@ -117,43 +136,124 @@ function TabBar({
   )
 }
 
-function PortTable({
-  ports,
-  selectedIndex,
+function GroupHeaderRow({
+  group,
+  collapsed,
+  onToggle,
+  isSelected,
 }: {
-  ports: PortEntry[]
+  group: Group
+  collapsed: boolean
+  onToggle: () => void
+  isSelected: boolean
+}) {
+  const arrow = collapsed ? "▶" : "▼"
+  const cursor = isSelected ? "▸ " : "  "
+  const count = group.children.length
+  const directProcs = new Set(group.children.map((c) => c.pid).filter((p): p is number => p != null)).size
+  return (
+    <box
+      id={`group-${group.key}`}
+      style={{
+        flexDirection: "row",
+        backgroundColor: isSelected ? colors.base : undefined,
+      }}
+      onMouseDown={onToggle}
+    >
+      <text fg={isSelected ? colors.blue : colors.base}>{cursor}</text>
+      <text fg={isSelected ? colors.lavender : colors.pink}>{arrow}</text>
+      <text fg={colors.base}>{"  "}</text>
+      <text fg={isSelected ? colors.lavender : colors.pink}>{group.name.padEnd(24)}</text>
+      <text fg={colors.base}>{"PID ".padEnd(5)}</text>
+      <text fg={colors.lavender}>{String(group.pid).padEnd(8)}</text>
+      <text fg={colors.base}>{`${count} socket${count === 1 ? "" : "s"}`}</text>
+      <text fg={colors.base}>{` · ${directProcs} proc${directProcs === 1 ? "" : "s"}`}</text>
+    </box>
+  )
+}
+
+function ChildRow({
+  port,
+  isSelected,
+  onSelect,
+}: {
+  port: PortEntry
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const row = formatRow(port)
+  return (
+    <box
+      id={`row-${portKey(port)}`}
+      style={{
+        flexDirection: "row",
+        backgroundColor: isSelected ? colors.base : undefined,
+      }}
+      onMouseDown={onSelect}
+    >
+      <text fg={isSelected ? colors.blue : colors.base}>
+        {isSelected ? "▸ " : "  "}
+      </text>
+      <text fg={isSelected ? colors.blue : colors.pink}>{row.port}</text>
+      <text fg={colors.teal}>{row.proto}</text>
+      <text fg={stateColor(port.state)}>{row.state}</text>
+      <text fg={colors.lavender}>{row.pid}</text>
+      <text fg={colors.lavender}>{row.process}</text>
+      <text fg={colors.teal}>{row.cwd}</text>
+      <text fg={colors.base}>{row.addr}</text>
+    </box>
+  )
+}
+
+function PortTable({
+  rows,
+  selectedIndex,
+  collapsed,
+  onToggleGroup,
+  onSelectRow,
+}: {
+  rows: Row[]
   selectedIndex: number
+  collapsed: Set<string>
+  onToggleGroup: (key: string) => void
+  onSelectRow: (rowIndex: number) => void
 }) {
   const scrollRef = useRef<ScrollBoxRenderable | null>(null)
-  const current = ports[selectedIndex]
+  const current = rows[selectedIndex]
 
   useEffect(() => {
-    if (current) scrollRef.current?.scrollChildIntoView(`row-${portKey(current)}`)
-  }, [selectedIndex, current])
+    const box = scrollRef.current
+    if (!box || !current) return
+    const id =
+      current.kind === "header"
+        ? `group-${current.group.key}`
+        : `row-${portKey(current.port)}`
+    box.scrollChildIntoView(id)
+  }, [selectedIndex, rows])
 
   return (
     <scrollbox ref={scrollRef} style={{ rootOptions: { flexGrow: 1 } }}>
       <box style={{ flexDirection: "column" }}>
-        {ports.map((p, i) => {
-          const row = formatRow(p)
+        {rows.map((row, i) => {
           const isSelected = i === selectedIndex
+          if (row.kind === "header") {
+            return (
+              <GroupHeaderRow
+                key={row.group.key}
+                group={row.group}
+                collapsed={collapsed.has(row.group.key)}
+                onToggle={() => onToggleGroup(row.group.key)}
+                isSelected={isSelected}
+              />
+            )
+          }
           return (
-            <box
-              key={portKey(p)}
-              id={`row-${portKey(p)}`}
-              style={{
-                flexDirection: "row",
-                backgroundColor: isSelected ? colors.base : undefined,
-              }}
-            >
-              <text fg={isSelected ? colors.blue : colors.pink}>{row.port}</text>
-              <text fg={colors.teal}>{row.proto}</text>
-              <text fg={stateColor(p.state)}>{row.state}</text>
-              <text fg={colors.lavender}>{row.pid}</text>
-              <text fg={colors.lavender}>{row.process}</text>
-              <text fg={colors.teal}>{row.cwd}</text>
-              <text fg={colors.base}>{row.addr}</text>
-            </box>
+            <ChildRow
+              key={portKey(row.port)}
+              port={row.port}
+              isSelected={isSelected}
+              onSelect={() => onSelectRow(i)}
+            />
           )
         })}
       </box>
@@ -166,7 +266,7 @@ function Footer() {
   return (
     <box style={{ flexDirection: "row", gap: 2 }}>
       <text fg={colors.base}>
-        ↑/↓ select · x kill · X kill -9 · t open terminal · tab switch · r restart · q quit
+        ↑/↓ select · home/end jump · g/G next/prev group · space collapse · x kill · t terminal · tab cat · r restart · q quit
       </text>
       {state.notice ? <text fg={colors.yellow}>{state.notice}</text> : null}
     </box>
@@ -178,6 +278,7 @@ function Dashboard() {
   const renderer = useRenderer()
   const [activeTab, setActiveTab] = useState<Category>("user-dev")
   const [selected, setSelected] = useState(0)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const counts = useMemo(() => {
     const c: Record<Category, number> = { "user-dev": 0, "user-app": 0, system: 0 }
@@ -185,12 +286,55 @@ function Dashboard() {
     return c
   }, [state.ports])
 
-  const ports = useMemo(
-    () => state.ports.filter((p) => p.category === activeTab),
-    [state.ports, activeTab],
-  )
-  const index = Math.min(selected, Math.max(0, ports.length - 1))
-  const current = ports[index]
+  const groups = useMemo(() => {
+    const filtered = state.ports.filter((p) => p.category === activeTab)
+    return groupPorts(filtered)
+  }, [state.ports, activeTab])
+
+  const rows = useMemo(() => buildRows(groups, collapsed), [groups, collapsed])
+  const safeSelected = Math.min(selected, Math.max(0, rows.length - 1))
+  const current = rows[safeSelected]
+
+  const toggleGroup = (key: string) => {
+    const willCollapse = !collapsed.has(key)
+    if (willCollapse) {
+      let headerIdx = -1
+      let groupSize = 0
+      let rowsBefore = 0
+      for (const g of groups) {
+        if (g.key === key) {
+          headerIdx = rowsBefore
+          groupSize = g.children.length
+          break
+        }
+        rowsBefore += 1 + (collapsed.has(g.key) ? 0 : g.children.length)
+      }
+      if (headerIdx >= 0) {
+        const newLen = rows.length - groupSize
+        setSelected((cur) => {
+          if (cur > headerIdx && cur <= headerIdx + groupSize) {
+            return newLen > 0 ? Math.min(headerIdx + 1, newLen - 1) : 0
+          }
+          if (cur > headerIdx + groupSize) {
+            return Math.max(0, cur - groupSize)
+          }
+          return cur
+        })
+      }
+    }
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const targetPidForRow = (row: Row | undefined): number | undefined => {
+    if (!row) return undefined
+    if (row.kind === "header") return row.group.pid
+    return row.port.pid
+  }
 
   useKeyboard((key) => {
     if (key.name === "escape" || key.name === "q") {
@@ -211,12 +355,38 @@ function Dashboard() {
     }
     if (key.name === "r") restart()
     if (key.name === "up") setSelected((i) => Math.max(0, i - 1))
-    if (key.name === "down") setSelected((i) => Math.min(ports.length - 1, i + 1))
-    if (key.name === "x" && current?.pid != null) {
-      killProcess(current.pid, key.shift ? "kill" : "term")
+    if (key.name === "down") setSelected((i) => Math.min(rows.length - 1, i + 1))
+    if (key.name === "home") setSelected(0)
+    if (key.name === "end") setSelected(rows.length - 1)
+    if (key.name === "g" || (key.shift && key.name === "g")) {
+      const headers = rows
+        .map((r, i) => ({ r, i }))
+        .filter((x) => x.r.kind === "header")
+      if (headers.length === 0) return
+      const cur = safeSelected
+      const isShift = key.shift
+      const next = isShift
+        ? headers.filter((h) => h.i < cur).pop()
+        : headers.find((h) => h.i > cur)
+      if (next) setSelected(next.i)
+      else if (isShift) setSelected(headers[0]!.i)
     }
-    if (key.name === "t" && current?.pid != null) {
-      openTerminal(current.pid, current.cwd)
+    if (key.name === "space" || key.name === "return") {
+      if (!current) return
+      const targetKey =
+        current.kind === "header"
+          ? current.group.key
+          : current.groupKey
+      toggleGroup(targetKey)
+      return
+    }
+    const pid = targetPidForRow(current)
+    if (key.name === "x" && pid != null) {
+      killProcess(pid, key.shift ? "kill" : "term")
+    }
+    if (key.name === "t" && pid != null) {
+      const cwd = current?.kind === "child" ? current.port.cwd : undefined
+      openTerminal(pid, cwd)
     }
   })
 
@@ -236,13 +406,23 @@ function Dashboard() {
         gap: 1,
       }}
     >
+      <box style={{ position: "absolute", right: 1, bottom: 0 }}>
+        <PixelCat />
+      </box>
       <Header />
       <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
       <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
       <text fg={colors.base}>
-        {"PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
+        {"APP                       PID     SOCKETS                  PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
       </text>
-      <PortTable key={activeTab} ports={ports} selectedIndex={index} />
+      <PortTable
+        key={`${activeTab}|${[...collapsed].sort().join(",")}`}
+        rows={rows}
+        selectedIndex={safeSelected}
+        collapsed={collapsed}
+        onToggleGroup={toggleGroup}
+        onSelectRow={setSelected}
+      />
       <Footer />
     </box>
   )
