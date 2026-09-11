@@ -61,8 +61,8 @@ updates are sent as deltas to keep the wire format compact.
 ## Install
 
 ```bash
-git clone <this-repo> pscanner
-cd pscanner
+git clone https://github.com/FedericoDeniard/PortScanner.git
+cd PortScanner
 bun install
 ```
 
