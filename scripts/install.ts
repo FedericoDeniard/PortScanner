@@ -153,7 +153,7 @@ function installLauncher() {
 function checkPath() {
   const pathDirs = (process.env.PATH ?? "").split(":")
   if (pathDirs.includes(BIN_DIR)) return
-  log(`\n⚠  ${BIN_DIR} no está en tu $PATH. Agregalo a ~/.zshrc:`)
+  log(`\n⚠  ${BIN_DIR} is not on your $PATH. Add it to ~/.zshrc:`)
   log(`   export PATH="${BIN_DIR}:$PATH"\n`)
 }
 

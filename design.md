@@ -1,79 +1,79 @@
 # Design
 
-Sistema visual inspirado en una interfaz de terminal Linux con estética **Tokyo Night**, reinterpretada con acentos pastel, transparencias suaves y una base azul-gris muy oscura.
+Visual system inspired by a Linux terminal interface with a **Tokyo Night** aesthetic, reinterpreted with pastel accents, soft transparencies, and a very dark blue-gray base.
 
-La interfaz debe sentirse **técnica, compacta, sobria y personal**, evitando superficies demasiado brillantes o colores saturados. Los colores pastel funcionan principalmente como semántica y jerarquía, mientras que los neutros oscuros sostienen la composición.
+The interface should feel **technical, compact, sober and personal**, avoiding overly bright surfaces or saturated colors. Pastel colors work primarily as semantics and hierarchy, while dark neutrals sustain the composition.
 
 ---
 
-## Paleta de colores
+## Color palette
 
-Paleta inspirada en el estilo "Tokyo Night" / temas pastel suaves sobre fondo oscuro.
+Palette inspired by the "Tokyo Night" style / soft pastel themes on a dark background.
 
-| Hex       | Vista previa | Descripción                |
-| --------- | ------------ | -------------------------- |
-| `#51576c` | ▇▇▇          | Gris azulado oscuro        |
-| `#e98186` | ▇▇▇          | Rojo coral                 |
-| `#a6d28a` | ▇▇▇          | Verde salvia               |
-| `#e6c890` | ▇▇▇          | Amarillo dorado / arena    |
-| `#8caaec` | ▇▇▇          | Azul cielo                 |
-| `#f2b9e5` | ▇▇▇          | Rosa pastel                |
-| `#82c8be` | ▇▇▇          | Verde azulado (teal)       |
-| `#b5bfe2` | ▇▇▇          | Azul lavanda claro         |
+| Hex       | Preview       | Description                |
+| --------- | ------------- | -------------------------- |
+| `#51576c` | ▇▇▇          | Dark blue-gray             |
+| `#e98186` | ▇▇▇          | Coral red                  |
+| `#a6d28a` | ▇▇▇          | Sage green                 |
+| `#e6c890` | ▇▇▇          | Golden / sand yellow       |
+| `#8caaec` | ▇▇▇          | Sky blue                   |
+| `#f2b9e5` | ▇▇▇          | Pastel pink                |
+| `#82c8be` | ▇▇▇          | Blue-green (teal)          |
+| `#b5bfe2` | ▇▇▇          | Light lavender blue        |
 
-### Definiciones (CSS / TS)
+### Definitions (CSS / TS)
 
 ```ts
 export const colors = {
-  base:    "#51576c", // gris azulado oscuro - neutro / bordes / texto secundario
-  red:     "#e98186", // rojo coral - errores / cerrado / peligro
-  green:   "#a6d28a", // verde salvia - éxito / abierto / ok
-  yellow:  "#e6c890", // amarillo dorado - advertencias / filtrado / pendiente
-  blue:    "#8caaec", // azul cielo - info / primario / acento
-  pink:    "#f2b9e5", // rosa pastel - resaltado / decorativo
-  teal:    "#82c8be", // teal - informativo secundario / categorías
-  lavender:"#b5bfe2", // azul lavanda - texto claro / fondos suaves
+  base:    "#51576c", // dark blue-gray - neutral / borders / secondary text
+  red:     "#e98186", // coral red - errors / closed / danger
+  green:   "#a6d28a", // sage green - success / open / ok
+  yellow:  "#e6c890", // golden yellow - warnings / filtered / pending
+  blue:    "#8caaec", // sky blue - info / primary / accent
+  pink:    "#f2b9e5", // pastel pink - highlight / decorative
+  teal:    "#82c8be", // teal - secondary info / categories
+  lavender:"#b5bfe2", // lavender blue - light text / soft backgrounds
 } as const;
 ```
 
-> Toda la UI se compone exclusivamente a partir de estos 8 colores. No se introducen neutros adicionales, escalas de grises ni tonos extra.
+> The entire UI is composed exclusively from these 8 colors. No additional neutrals, grays, or extra shades are introduced.
 
 ---
 
-## Roles semánticos
+## Semantic roles
 
-Los colores se eligen por intención, no únicamente por decoración.
+Colors are chosen by intent, not just for decoration.
 
-| Rol | Color | Aplicación |
+| Role | Color | Application |
 | --- | ----- | ---------- |
-| Primario / acción | `#8caaec` | Links, acciones principales, focus |
-| Éxito | `#a6d28a` | Estados OK, online, completado |
-| Advertencia | `#e6c890` | Pending, atención, recursos limitados |
-| Error / peligro | `#e98186` | Error, fallo, acciones destructivas |
-| Información secundaria | `#82c8be` | Tags, categorías, datos técnicos |
-| Destacado | `#f2b9e5` | Encabezados, keywords, valores importantes |
-| Texto claro / énfasis suave | `#b5bfe2` | Valores, subtítulos destacados |
-| Neutral | `#51576c` | Bordes, separadores, estado deshabilitado |
+| Primary / action | `#8caaec` | Links, main actions, focus |
+| Success | `#a6d28a` | OK states, online, completed |
+| Warning | `#e6c890` | Pending, attention, limited resources |
+| Error / danger | `#e98186` | Error, failure, destructive actions |
+| Secondary information | `#82c8be` | Tags, categories, technical data |
+| Highlight | `#f2b9e5` | Headings, keywords, important values |
+| Light text / soft emphasis | `#b5bfe2` | Values, prominent subtitles |
+| Neutral | `#51576c` | Borders, separators, disabled state |
 
-### Regla de uso
+### Usage rule
 
-Los acentos pastel deben aparecer en **pequeñas dosis**. Como referencia:
+Pastel accents must appear in **small doses**. As a reference:
 
-- 60–75% del área visual: `colors.base` y sus variantes de opacidad.
-- 15–25%: `colors.lavender` para texto y valores suaves.
-- 5–15%: colores de acento semánticos.
+- 60–75% of the visual area: `colors.base` and its opacity variants.
+- 15–25%: `colors.lavender` for soft text and values.
+- 5–15%: semantic accent colors.
 
-No utilizar simultáneamente todos los colores saturados dentro del mismo componente salvo que se trate de una visualización deliberadamente multicolor.
+Do not use all saturated colors simultaneously within the same component unless it is a deliberately multicolored visualization.
 
 ---
 
-## Tipografía
+## Typography
 
-La referencia utiliza una estética inequívocamente **monoespaciada**, similar a un terminal moderno.
+The reference uses an unmistakably **monospaced** aesthetic, similar to a modern terminal.
 
-### Familia
+### Family
 
-Preferir:
+Prefer:
 
 ```css
 font-family:
@@ -86,28 +86,28 @@ font-family:
   monospace;
 ```
 
-La tipografía debe conservar:
+The typography must preserve:
 
-- ancho monoespaciado;
-- buena diferenciación entre `0/O`, `1/l/I`;
-- números claramente legibles;
-- soporte correcto de símbolos técnicos;
-- apariencia compacta.
+- monospaced width;
+- good differentiation between `0/O`, `1/l/I`;
+- clearly legible numbers;
+- correct support for technical symbols;
+- compact appearance.
 
-### Escala tipográfica
+### Typographic scale
 
-| Token | Tamaño | Uso |
-| ----- | ------ | --- |
-| `xs` | `11px` | Microtexto, indicadores |
-| `sm` | `12px` | Metadatos y navegación |
-| `md` | `14px` | Texto principal |
-| `lg` | `16px` | Encabezados pequeños |
-| `xl` | `20px` | Títulos de sección |
-| `2xl` | `24px` | Títulos principales |
+| Token | Size | Usage |
+| ----- | ---- | ----- |
+| `xs` | `11px` | Microcopy, indicators |
+| `sm` | `12px` | Metadata and navigation |
+| `md` | `14px` | Main text |
+| `lg` | `16px` | Small headings |
+| `xl` | `20px` | Section titles |
+| `2xl` | `24px` | Main titles |
 
-En interfaces inspiradas en la captura, `12px–14px` debe ser el rango predominante.
+In interfaces inspired by the screenshot, `12px–14px` should be the predominant range.
 
-### Peso
+### Weight
 
 ```ts
 export const fontWeights = {
@@ -118,7 +118,7 @@ export const fontWeights = {
 } as const;
 ```
 
-Usar `600–700` para nombres, encabezados y claves de información. Evitar grandes bloques en negrita.
+Use `600–700` for names, headings and information keys. Avoid large bold blocks.
 
 ### Line height
 
@@ -130,13 +130,13 @@ export const lineHeights = {
 } as const;
 ```
 
-Para contenido tipo terminal o datos densos, preferir `1.35–1.5`.
+For terminal-like content or dense data, prefer `1.35–1.5`.
 
 ---
 
-## Espaciado
+## Spacing
 
-El sistema usa una cuadrícula pequeña y consistente para conservar una sensación compacta.
+The system uses a small, consistent grid to preserve a compact feel.
 
 ```ts
 export const spacing = {
@@ -154,22 +154,22 @@ export const spacing = {
 } as const;
 ```
 
-### Uso recomendado
+### Recommended use
 
-- `4px`: separación entre elementos íntimamente relacionados.
-- `8px`: separación de labels, iconos y valores.
-- `12px`: padding interno compacto.
-- `16px`: padding estándar de componentes.
-- `24px`: separación entre bloques.
-- `32px+`: separación entre secciones.
+- `4px`: separation between closely related elements.
+- `8px`: separation of labels, icons and values.
+- `12px`: compact internal padding.
+- `16px`: standard component padding.
+- `24px`: separation between blocks.
+- `32px+`: separation between sections.
 
-La interfaz debe sentirse **densa pero respirable**, no excesivamente espaciosa.
+The interface should feel **dense but breathable**, not overly spacious.
 
 ---
 
-## Bordes y radios
+## Borders and radii
 
-La referencia visual favorece bordes finos y una geometría relativamente recta.
+The visual reference favors thin borders and relatively straight geometry.
 
 ```ts
 export const radius = {
@@ -186,29 +186,29 @@ export const borders = {
 } as const;
 ```
 
-### Reglas
+### Rules
 
-- Cards y paneles: `4–8px`.
+- Cards and panels: `4–8px`.
 - Inputs: `4px`.
-- Chips/status: `999px` solo cuando se quiera enfatizar el carácter de badge.
-- Evitar radios muy grandes tipo `16–24px` porque alejan la estética de terminal.
-- Los bordes deben ser discretos y de bajo contraste usando `colors.base` con baja opacidad.
+- Chips/status: `999px` only when emphasizing the badge nature.
+- Avoid very large radii like `16–24px` because they move away from the terminal aesthetic.
+- Borders must be discreet and low-contrast using `colors.base` with low opacity.
 
 ---
 
-## Iconografía
+## Iconography
 
-La iconografía debe complementar la estética técnica.
+Iconography must complement the technical aesthetic.
 
-Preferir:
+Prefer:
 
-- iconos lineales;
-- stroke fino/medio;
-- formas geométricas;
-- poco relleno;
-- tamaño entre `14px` y `18px`.
+- linear icons;
+- thin/medium stroke;
+- geometric shapes;
+- little fill;
+- size between `14px` and `18px`.
 
-Colores:
+Colors:
 
 ```ts
 export const iconColors = {
@@ -223,11 +223,11 @@ export const iconColors = {
 } as const;
 ```
 
-No utilizar iconos con colores arbitrarios fuera del sistema.
+Do not use icons with arbitrary colors outside the system.
 
 ---
 
-## Componentes
+## Components
 
 ### Syntax highlighting
 
@@ -244,13 +244,13 @@ export const syntax = {
 } as const;
 ```
 
-La captura demuestra que el lenguaje visual funciona especialmente bien cuando **distintos tipos de información reciben colores distintos, pero todos pertenecen al mismo pastel apagado**.
+The screenshot shows that the visual language works especially well when **different types of information receive different colors, but all belong to the same muted pastel**.
 
 ---
 
 ### Badge / Status
 
-Un status debe comunicar rápidamente información operacional.
+A status should quickly communicate operational information.
 
 ```css
 .status {
@@ -264,10 +264,10 @@ Un status debe comunicar rápidamente información operacional.
 }
 ```
 
-Variantes (fondo con alpha derivada del color de paleta, texto en color sólido):
+Variants (background with alpha derived from the palette color, text in solid color):
 
-| Variante | Fondo recomendado | Texto |
-| -------- | ----------------- | ----- |
+| Variant | Recommended background | Text |
+| ------- | ---------------------- | ---- |
 | Success | `rgba(166, 210, 138, .14)` | `#a6d28a` |
 | Warning | `rgba(230, 200, 144, .14)` | `#e6c890` |
 | Error | `rgba(233, 129, 134, .14)` | `#e98186` |
@@ -278,44 +278,44 @@ Variantes (fondo con alpha derivada del color de paleta, texto en color sólido)
 
 ### Buttons
 
-Los botones deben ser compactos y funcionales.
+Buttons must be compact and functional.
 
 #### Primary
 
-- fondo `colors.blue`;
-- texto `colors.base` (oscuro, alto contraste sobre el azul);
-- hover con mayor luminosidad / opacidad reducida;
-- focus con outline `colors.blue`.
+- background `colors.blue`;
+- text `colors.base` (dark, high contrast on blue);
+- hover with higher luminosity / reduced opacity;
+- focus with outline `colors.blue`.
 
 #### Secondary
 
-- fondo `colors.base`;
-- texto `colors.lavender`;
-- borde sutil.
+- background `colors.base`;
+- text `colors.lavender`;
+- subtle border.
 
 #### Ghost
 
-- fondo transparente;
-- texto `colors.lavender`;
-- hover con `colors.base` semi-transparente.
+- transparent background;
+- text `colors.lavender`;
+- hover with semi-transparent `colors.base`.
 
-Evitar botones enormes, redondeados y altamente saturados.
+Avoid huge, rounded, highly saturated buttons.
 
 ---
 
 ## Layout
 
-La composición de referencia utiliza grandes superficies visuales con bloques de información compactos.
+The reference composition uses large visual surfaces with blocks of compact information.
 
-### Principios
+### Principles
 
-- usar `colors.base` como lienzo de fondo;
-- mantener contenido principal dentro de una columna de lectura;
-- reservar espacios amplios alrededor del contenido;
-- combinar una zona dominante con bloques secundarios;
-- evitar grids demasiado densos.
+- use `colors.base` as the background canvas;
+- keep main content within a reading column;
+- reserve wide spaces around content;
+- combine a dominant area with secondary blocks;
+- avoid overly dense grids.
 
-### Anchuras
+### Widths
 
 ```ts
 export const layout = {
@@ -326,23 +326,23 @@ export const layout = {
 } as const;
 ```
 
-Para contenido principalmente textual/técnico, `640–840px` suele ser suficiente.
+For mainly textual/technical content, `640–840px` is usually enough.
 
 ---
 
-## Alineación
+## Alignment
 
-La interfaz se beneficia de alineaciones estrictas.
+The interface benefits from strict alignments.
 
-Preferir:
+Prefer:
 
-- bordes y textos alineados;
-- columnas con ancho consistente;
-- valores numéricos alineados;
-- iconos alineados al centro del texto;
-- listas de datos con separación constante.
+- aligned borders and texts;
+- columns with consistent width;
+- aligned numeric values;
+- icons aligned to the center of the text;
+- data lists with constant separation.
 
-Para pares `label/value`:
+For `label/value` pairs:
 
 ```text
 OS:         Gentoo Linux ppc
@@ -352,13 +352,13 @@ Uptime:     18 hours, 18 mins
 Packages:   62 (emerge)
 ```
 
-El valor puede utilizar un tono más claro (`colors.lavender`) o un color semántico según su importancia.
+The value can use a lighter tone (`colors.lavender`) or a semantic color depending on its importance.
 
 ---
 
 ## Motion
 
-El movimiento debe ser funcional y discreto.
+Motion must be functional and discreet.
 
 ```ts
 export const duration = {
@@ -373,28 +373,28 @@ export const easing = {
 } as const;
 ```
 
-Usos:
+Uses:
 
 - hover: `120–180ms`;
-- apertura de panel: `180–280ms`;
-- cambios de contenido: `180–280ms`.
+- panel opening: `180–280ms`;
+- content changes: `180–280ms`.
 
-Evitar rebotes, escalados exagerados y animaciones constantes.
+Avoid bounces, exaggerated scaling, and constant animations.
 
 ---
 
-## Accesibilidad
+## Accessibility
 
-La estética pastel no debe comprometer la legibilidad.
+The pastel aesthetic must not compromise legibility.
 
-### Reglas mínimas
+### Minimum rules
 
-- texto principal con alto contraste (`colors.lavender` sobre `colors.base`);
-- no depender exclusivamente del color para estados;
-- errores y warnings acompañados por icono, label o descripción;
-- focus visible;
-- tamaño táctil mínimo razonable;
-- respetar `prefers-reduced-motion`.
+- main text with high contrast (`colors.lavender` on `colors.base`);
+- do not rely exclusively on color for states;
+- errors and warnings accompanied by icon, label or description;
+- visible focus;
+- reasonable minimum touch size;
+- respect `prefers-reduced-motion`.
 
 ```css
 @media (prefers-reduced-motion: reduce) {
@@ -413,30 +413,30 @@ La estética pastel no debe comprometer la legibilidad.
 
 ## Responsive
 
-La estética debe conservarse en pantallas pequeñas, reduciendo densidad antes que perder legibilidad.
+The aesthetic must be preserved on small screens, reducing density before losing legibility.
 
 ### Desktop
 
-- paneles en paralelo cuando tenga sentido;
-- tipografía `12–14px`;
-- mucho espacio alrededor de la composición.
+- parallel panels when it makes sense;
+- `12–14px` typography;
+- plenty of space around the composition.
 
 ### Tablet
 
-- reducir márgenes;
-- pasar grids de múltiples columnas a `2`;
-- mantener paneles con padding de `12–16px`.
+- reduce margins;
+- switch multi-column grids to `2`;
+- keep panels with `12–16px` padding.
 
 ### Mobile
 
-- una sola columna;
-- ocultar información secundaria antes que reducir demasiado el texto;
-- padding de `12–16px`;
-- fuentes nunca menores a `12px` para contenido relevante.
+- a single column;
+- hide secondary information before reducing text too much;
+- `12–16px` padding;
+- fonts never smaller than `12px` for relevant content.
 
 ---
 
-## Ejemplo de tokens completos
+## Example of complete tokens
 
 ```ts
 export const designTokens = {
@@ -466,34 +466,34 @@ export const designTokens = {
 
 ---
 
-## Principios de diseño
+## Design principles
 
-1. **Oscuro primero**  
-   La base de la interfaz es `colors.base`. Los colores pastel son acentos.
+1. **Dark first**  
+   The base of the interface is `colors.base`. Pastel colors are accents.
 
-2. **Terminal, no dashboard corporativo**  
-   La UI debe sentirse técnica, directa y orientada a información, evitando cards gigantes y gradientes excesivos.
+2. **Terminal, not corporate dashboard**  
+   The UI should feel technical, direct, and information-oriented, avoiding giant cards and excessive gradients.
 
-3. **Pasteles con propósito**  
-   Cada color debe tener un significado semántico consistente.
+3. **Pastels with purpose**  
+   Every color must have a consistent semantic meaning.
 
-4. **Alta densidad, buena legibilidad**  
-   Mucha información puede convivir en poco espacio siempre que exista una jerarquía tipográfica clara.
+4. **High density, good legibility**  
+   A lot of information can coexist in a small space as long as there is a clear typographic hierarchy.
 
-5. **Contraste por capas**  
-   La profundidad se construye con `colors.base` en distintas intensidades y bordes sutiles, no con sombras fuertes ni colores nuevos.
+5. **Contrast by layers**  
+   Depth is built with `colors.base` at different intensities and subtle borders, not with strong shadows or new colors.
 
-6. **Monoespaciado como identidad**  
-   La tipografía monoespaciada no es solamente decorativa: define el carácter técnico del sistema.
+6. **Monospaced as identity**  
+   Monospaced typography is not just decorative: it defines the technical character of the system.
 
-7. **Precisión visual**  
-   Alineaciones, espaciados y tamaños deben seguir una escala predecible.
+7. **Visual precision**  
+   Alignments, spacing and sizes must follow a predictable scale.
 
-8. **Sobriedad interactiva**  
-   Hover, focus y active deben ser visibles pero discretos.
+8. **Sober interactivity**  
+   Hover, focus and active must be visible but discreet.
 
-9. **Solo la paleta definida**  
-   Un componente nuevo debe reutilizar los 8 tokens existentes. Nunca se introduce un color adicional.
+9. **Only the defined palette**  
+   A new component must reuse the 8 existing tokens. Never introduce an additional color.
 
-10. **La información manda**  
-    La estética debe ayudar a leer y entender datos, no competir con ellos.
+10. **Information leads**  
+    The aesthetic must help read and understand data, not compete with them.
