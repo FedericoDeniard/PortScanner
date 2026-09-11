@@ -64,6 +64,8 @@ mod tests {
             state: Some("LISTEN".into()),
             pid: Some(pid),
             process_name: None,
+            exe: None,
+            cwd: None,
             category: Category::UserApp,
         }
     }

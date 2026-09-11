@@ -69,6 +69,7 @@ export function resolveMonitorBin(): string {
 type StoreValue = {
   state: PortsState
   killProcess: (pid: number, signal?: "term" | "kill") => void
+  openTerminal: (pid: number, cwd?: string) => void
   restart: () => void
 }
 
@@ -119,6 +120,14 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
           case "ack":
             if (!evt.ok) dispatch({ type: "NOTICE", notice: evt.error ?? "command failed" })
             break
+          case "opened":
+            dispatch({
+              type: "NOTICE",
+              notice: evt.ok
+                ? `opened in ${evt.terminal ?? "terminal"}`
+                : `no terminal found (${evt.error ?? "no match"})`,
+            })
+            break
           case "error":
             console.error("[portmon]", evt.message)
             break
@@ -159,6 +168,7 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
   const value: StoreValue = {
     state,
     killProcess: (pid, signal) => clientRef.current?.killProcess(pid, signal),
+    openTerminal: (pid, cwd) => clientRef.current?.openTerminal(pid, cwd),
     restart: () => {
       restartsRef.current = 0
       setGeneration((g) => g + 1)

@@ -40,8 +40,15 @@ function formatRow(p: PortEntry) {
     state: (p.state ?? "—").padEnd(13),
     pid: String(p.pid ?? "—").padEnd(7),
     process: (p.processName ?? "—").padEnd(20),
+    cwd: truncateCwd(p.cwd),
     addr: p.localAddr,
   }
+}
+
+function truncateCwd(cwd: string | undefined, max = 40): string {
+  if (!cwd) return "—".padEnd(max)
+  if (cwd.length <= max) return cwd.padEnd(max)
+  return "…" + cwd.slice(cwd.length - (max - 1))
 }
 
 function Header() {
@@ -144,6 +151,7 @@ function PortTable({
               <text fg={stateColor(p.state)}>{row.state}</text>
               <text fg={colors.lavender}>{row.pid}</text>
               <text fg={colors.lavender}>{row.process}</text>
+              <text fg={colors.teal}>{row.cwd}</text>
               <text fg={colors.base}>{row.addr}</text>
             </box>
           )
@@ -158,7 +166,7 @@ function Footer() {
   return (
     <box style={{ flexDirection: "row", gap: 2 }}>
       <text fg={colors.base}>
-        ↑/↓ select · x kill · X kill -9 · tab switch · r restart · q quit
+        ↑/↓ select · x kill · X kill -9 · t open terminal · tab switch · r restart · q quit
       </text>
       {state.notice ? <text fg={colors.yellow}>{state.notice}</text> : null}
     </box>
@@ -166,7 +174,7 @@ function Footer() {
 }
 
 function Dashboard() {
-  const { state, killProcess, restart } = usePorts()
+  const { state, killProcess, openTerminal, restart } = usePorts()
   const renderer = useRenderer()
   const [activeTab, setActiveTab] = useState<Category>("user-dev")
   const [selected, setSelected] = useState(0)
@@ -207,6 +215,9 @@ function Dashboard() {
     if (key.name === "x" && current?.pid != null) {
       killProcess(current.pid, key.shift ? "kill" : "term")
     }
+    if (key.name === "t" && current?.pid != null) {
+      openTerminal(current.pid, current.cwd)
+    }
   })
 
   return (
@@ -229,7 +240,7 @@ function Dashboard() {
       <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
       <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
       <text fg={colors.base}>
-        {"PORT     PROTO  STATE         PID     PROCESS              LOCAL ADDR"}
+        {"PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
       </text>
       <PortTable key={activeTab} ports={ports} selectedIndex={index} />
       <Footer />
