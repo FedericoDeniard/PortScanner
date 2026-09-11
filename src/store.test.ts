@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test"
 import { portsReducer, type PortsState } from "./store"
-import type { PortEntry } from "./monitor/protocol"
+import type { Category, PortEntry } from "./monitor/protocol"
 
-const entry = (port: number, pid: number, protocol: "tcp" | "udp" = "tcp"): PortEntry => ({
+const entry = (
+  port: number,
+  pid: number,
+  protocol: "tcp" | "udp" = "tcp",
+  category: Category = "user-dev",
+): PortEntry => ({
   protocol,
   localAddr: "*",
   localPort: port,
   state: "LISTEN",
   pid,
+  category,
 })
 
 const base: PortsState = { ports: [], status: "connecting", seq: 0 }
@@ -90,5 +96,28 @@ describe("portsReducer", () => {
     const next = portsReducer(ready, { type: "NOTICE", notice: "kill failed" })
     expect(next.status).toBe("ready")
     expect(next.notice).toBe("kill failed")
+  })
+
+  test("DELTA preserves entries across different categories", () => {
+    const withPorts = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [
+        entry(3000, 1, "tcp", "user-dev"),
+        entry(5353, 2, "udp", "user-app"),
+        entry(7000, 3, "tcp", "system"),
+      ],
+    })
+    const next = portsReducer(withPorts, {
+      type: "DELTA",
+      seq: 2,
+      added: [entry(8080, 4, "tcp", "system")],
+      removed: [entry(3000, 1, "tcp", "user-dev")],
+    })
+    expect(next.ports.map((p) => [p.localPort, p.category])).toEqual([
+      [5353, "user-app"],
+      [7000, "system"],
+      [8080, "system"],
+    ])
   })
 })

@@ -7,6 +7,14 @@ pub enum Protocol {
     Udp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Category {
+    System,
+    UserApp,
+    UserDev,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortEntry {
@@ -23,6 +31,7 @@ pub struct PortEntry {
     pub pid: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_name: Option<String>,
+    pub category: Category,
 }
 
 impl PortEntry {
@@ -117,6 +126,7 @@ mod tests {
             state: Some("LISTEN".into()),
             pid: Some(42),
             process_name: Some("node".into()),
+            category: Category::UserDev,
         }
     }
 
@@ -130,6 +140,19 @@ mod tests {
         assert!(json.contains("\"type\":\"snapshot\""));
         assert!(json.contains("\"localPort\":3000"));
         assert!(json.contains("\"processName\":\"node\""));
+        assert!(json.contains("\"category\":\"user-dev\""));
+    }
+
+    #[test]
+    fn category_serializes_kebab() {
+        for (c, expected) in [
+            (Category::System, "\"system\""),
+            (Category::UserApp, "\"user-app\""),
+            (Category::UserDev, "\"user-dev\""),
+        ] {
+            let json = serde_json::to_string(&c).unwrap();
+            assert_eq!(json, expected);
+        }
     }
 
     #[test]

@@ -1,5 +1,7 @@
 export type Protocol = "tcp" | "udp"
 
+export type Category = "system" | "user-app" | "user-dev"
+
 export type PortEntry = {
   protocol: Protocol
   localAddr: string
@@ -9,6 +11,7 @@ export type PortEntry = {
   state?: string
   pid?: number
   processName?: string
+  category: Category
 }
 
 export type MonitorEvent =

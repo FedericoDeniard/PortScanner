@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo};
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-use crate::proto::{PortEntry, Protocol};
+use crate::proto::{Category, PortEntry, Protocol};
 
 pub struct Scanner {
     system: System,
@@ -32,6 +34,7 @@ impl Scanner {
                     state: Some(format!("{:?}", tcp.state).to_uppercase()),
                     pid,
                     process_name: None,
+                    category: Category::UserApp,
                 }),
                 ProtocolSocketInfo::Udp(udp) => out.push(PortEntry {
                     protocol: Protocol::Udp,
@@ -42,6 +45,7 @@ impl Scanner {
                     state: None,
                     pid,
                     process_name: None,
+                    category: Category::UserApp,
                 }),
             }
         }
@@ -52,6 +56,7 @@ impl Scanner {
             if let Some(pid) = entry.pid {
                 if let Some(process) = self.system.process(Pid::from_u32(pid)) {
                     entry.process_name = Some(process.name().to_string_lossy().into_owned());
+                    entry.category = classify(process.exe());
                 }
             }
         }
@@ -62,5 +67,87 @@ impl Scanner {
                 .then(a.protocol.cmp(&b.protocol))
         });
         Ok(out)
+    }
+}
+
+fn classify(exe: Option<&Path>) -> Category {
+    let Some(path) = exe else {
+        return Category::UserApp;
+    };
+    let s = path.to_string_lossy();
+    if s.starts_with("/System/")
+        || s.starts_with("/usr/libexec/")
+        || s.starts_with("/usr/sbin/")
+        || s.starts_with("/usr/bin/")
+        || s.starts_with("/sbin/")
+        || s.starts_with("/bin/")
+    {
+        Category::System
+    } else if s.contains("/Applications/") {
+        Category::UserApp
+    } else if s.starts_with('/') && s.contains("/Users/") {
+        Category::UserDev
+    } else {
+        Category::UserApp
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn system_paths() {
+        for p in [
+            "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter",
+            "/usr/libexec/rapportd",
+            "/usr/sbin/something",
+            "/usr/bin/something",
+            "/sbin/launchd",
+            "/bin/sh",
+        ] {
+            assert_eq!(
+                classify(Some(&PathBuf::from(p))),
+                Category::System,
+                "expected System for {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn user_app_paths() {
+        for p in [
+            "/Applications/Spotify.app/Contents/MacOS/Spotify",
+            "/Applications/OrbStack.app/Contents/MacOS/OrbStack Helper",
+            "/Users/federicodeniard/Applications/Some.app/Contents/MacOS/Some",
+        ] {
+            assert_eq!(
+                classify(Some(&PathBuf::from(p))),
+                Category::UserApp,
+                "expected UserApp for {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn user_dev_paths() {
+        for p in [
+            "/Users/federicodeniard/projects/hub/node_modules/.bin/vite",
+            "/Users/federicodeniard/.cargo/bin/cargo",
+            "/Users/fede/dev/something/target/debug/server",
+        ] {
+            assert_eq!(
+                classify(Some(&PathBuf::from(p))),
+                Category::UserDev,
+                "expected UserDev for {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn fallback_when_path_unknown() {
+        assert_eq!(classify(None), Category::UserApp);
+        assert_eq!(classify(Some(&PathBuf::from(""))), Category::UserApp);
     }
 }
