@@ -367,7 +367,7 @@ function truncateImage(image: string | undefined, max: number): string {
 function ContainerColumnsHeader() {
   return (
     <text fg={colors.base}>
-      {"CONTAINER                PID     SOCKETS                  PORT       PROTO  STATE         PID     NAME                                  IMAGE                                        LOCAL ADDR"}
+      {"  PORT    PROTO STATE        PID     NAME                                  IMAGE                                        LOCAL ADDR"}
     </text>
   )
 }
@@ -593,7 +593,7 @@ function Dashboard() {
         <ContainerColumnsHeader />
       ) : (
         <text fg={colors.base}>
-          {"APP                       PID     SOCKETS                  PORT     PROTO  STATE         PID     PROCESS              CWD                                       LOCAL ADDR"}
+          {"  PORT    PROTO STATE        PID     PROCESS                 CWD                                       LOCAL ADDR"}
         </text>
       )}
       <PortTable
