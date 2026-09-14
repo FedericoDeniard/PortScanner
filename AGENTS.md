@@ -10,8 +10,10 @@ TCP/UDP port viewer/scanner in use on the local machine, built as a TUI with **O
 | `bun start` | Runs the TUI (requires the binary already compiled). |
 | `bun run build:monitor` | Compiles the Rust monitor in release. |
 | `bun run install` | Full build (Rust release + TUI self-contained) and installs `pscanner` in `~/.local/bin`. |
-| `pscanner-update` | Re-runs install (reads `sourceDir` from `~/.local/share/pscanner/config.json`). |
-| `bun run uninstall` | Removes symlinks in `~/.local/bin` and `~/.local/share/pscanner/`. |
+| `pscanner help` | Lists subcommands (`version`, `update`, `uninstall`, `help`); same as `--help` / `-h`. |
+| `pscanner update` | Re-runs install (reads `sourceDir` from `~/.local/share/pscanner/config.json`). |
+| `pscanner uninstall` | Removes symlinks in `~/.local/bin` and `~/.local/share/pscanner/`. |
+| `bun run uninstall` | Same as `pscanner uninstall` but invoked from the source tree. |
 | `bun test` | TS tests (`bun:test`) + Rust tests (`cargo test`). |
 
 Package manager: **bun** (lockfile `bun.lock`). Rust toolchain: **cargo** (crate in `monitor/`).

@@ -76,11 +76,9 @@ Rust monitor. Pick one of:
 | Install `pscanner` into `~/.local`| `bun run install`      |
 
 `bun run install` compiles both the Rust monitor and a self-contained TUI
-binary with `bun build --compile`, then symlinks them into:
+binary with `bun build --compile`, then symlinks it into:
 
-- `~/.local/bin/pscanner` — the launcher
-- `~/.local/bin/pscanner-update` — re-runs the installer using the
-  `sourceDir` recorded in `~/.local/share/pscanner/config.json`
+- `~/.local/bin/pscanner` — the launcher (single binary, subcommand-routed)
 
 If `~/.local/bin` is not on your `PATH`, the installer prints the export line
 to add.
@@ -88,10 +86,14 @@ to add.
 After installation:
 
 ```bash
-pscanner            # launch
-pscanner --version  # print version
-pscanner-update     # rebuild and reinstall after editing the source
+pscanner            # launch the TUI
+pscanner help       # list subcommands
+pscanner version    # print version
+pscanner update     # rebuild and reinstall after editing the source
+pscanner uninstall  # remove the symlink and ~/.local/share/pscanner
 ```
+
+An unknown subcommand exits with code 1 and suggests `pscanner help`.
 
 ## Usage
 
