@@ -6,7 +6,7 @@ import { join } from "node:path"
 const HOME = homedir()
 const SHARE_DIR = join(HOME, ".local", "share", "pscanner")
 const BIN_DIR = join(HOME, ".local", "bin")
-const BIN_LINKS = [join(BIN_DIR, "pscanner"), join(BIN_DIR, "pscanner-update")]
+const BIN_LINKS = [join(BIN_DIR, "pscanner")]
 
 function log(m: string) {
   process.stdout.write(`${m}\n`)
