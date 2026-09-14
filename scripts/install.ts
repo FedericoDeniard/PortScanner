@@ -133,18 +133,6 @@ function writeConfig() {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
 }
 
-function installUpdateWrapper() {
-  ensureDir(BIN_DIR)
-  const wrapperPath = join(SHARE_DIR, "update.sh")
-  const body = `#!/bin/sh
-set -e
-exec bun run "${join(SHARE_DIR, "install.ts")}" "$@"
-`
-  writeFileSync(wrapperPath, body)
-  Bun.spawnSync(["chmod", "+x", wrapperPath])
-  relink(join(BIN_DIR, "pscanner-update"), wrapperPath)
-}
-
 function installLauncher() {
   ensureDir(BIN_DIR)
   relink(join(BIN_DIR, "pscanner"), join(SHARE_DIR, TUI_BIN))
@@ -182,11 +170,11 @@ async function main() {
   installBinaries()
   writeConfig()
   installLauncher()
-  installUpdateWrapper()
   checkPath()
   await smokeTest()
   log("\n✓ done. Run `pscanner` from anywhere.")
-  log("  Use `pscanner-update` after making changes.")
+  log("  Use `pscanner update` after making changes.")
+  log("  Use `pscanner uninstall` to remove it.")
 }
 
 await main()

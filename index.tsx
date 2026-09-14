@@ -1,5 +1,6 @@
 import { createCliRenderer, type ScrollBoxRenderable } from "@opentui/core"
 import { createRoot, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
+import { dirname, join } from "node:path"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { MonitorProvider, usePorts } from "./src/store"
 import { portKey, type Category, type PortEntry } from "./src/monitor/protocol"
@@ -628,9 +629,65 @@ const VERSION =
     )
     .catch(() => "0.0.0"))
 
-if (process.argv.includes("--version") || process.argv.includes("-V")) {
+const subcommand = process.argv[2]
+const shareDir = dirname(process.execPath)
+
+const HELP_LINES = [
+  `pscanner ${VERSION} — keyboard-driven TUI for local TCP/UDP ports`,
+  ``,
+  `Usage:`,
+  `  pscanner <command>`,
+  ``,
+  `Commands:`,
+  `  (none)         launch the TUI`,
+  `  version        print version`,
+  `  update         rebuild and reinstall from source`,
+  `  uninstall      remove the symlink and ~/.local/share/pscanner`,
+  `  help           show this help`,
+]
+
+function printHelp() {
+  for (const line of HELP_LINES) process.stdout.write(`${line}\n`)
+}
+
+if (subcommand === "update") {
+  const result = Bun.spawnSync(
+    ["bun", "run", join(shareDir, "install.ts")],
+    { stdio: ["inherit", "inherit", "inherit"] },
+  )
+  process.exit(result.exitCode ?? 0)
+}
+
+if (subcommand === "uninstall") {
+  const result = Bun.spawnSync(
+    ["bun", "run", join(shareDir, "uninstall.ts")],
+    { stdio: ["inherit", "inherit", "inherit"] },
+  )
+  process.exit(result.exitCode ?? 0)
+}
+
+if (
+  subcommand === "version" ||
+  subcommand === "--version" ||
+  subcommand === "-V"
+) {
   process.stdout.write(`pscanner ${VERSION}\n`)
   process.exit(0)
+}
+
+if (
+  subcommand === "help" ||
+  subcommand === "--help" ||
+  subcommand === "-h"
+) {
+  printHelp()
+  process.exit(0)
+}
+
+if (subcommand !== undefined && subcommand !== "") {
+  process.stderr.write(`pscanner: unknown subcommand '${subcommand}'\n`)
+  process.stderr.write(`Run 'pscanner help' for a list of commands.\n`)
+  process.exit(1)
 }
 
 const renderer = await createCliRenderer({ exitOnCtrlC: false })
