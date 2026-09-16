@@ -208,10 +208,131 @@ primer chequeo. **Cero cambios al código de la app.**
 ## Orden de ejecución (este PR)
 
 1. ✅ Escribir este plan en `BREW_RELEASE.md`.
-2. `scripts/package.ts` + prueba local del tarball.
-3. `scripts/gen-formula.ts` + revisión de la fórmula generada.
-4. `.github/workflows/release.yml`.
-5. `.gitignore` (descartar `pnpm-lock.yaml` huérfano, ignorar `dist/`).
+2. ✅ `scripts/package.ts` + prueba local del tarball.
+3. ✅ `scripts/gen-formula.ts` + revisión de la fórmula generada.
+4. ✅ `.github/workflows/release.yml`.
+5. ✅ `.gitignore` (descartar `pnpm-lock.yaml` huérfano, ignorar `dist/`).
+6. ✅ Documentar en `README.md` y `AGENTS.md`.
+7. ✅ (Por el usuario) Crear PAT + secret. (Por mí, una vez) Crear `homebrew-tap`.
+8. ✅ Tag de prueba `v1.1.1` → verificar pipeline completo.
+
+---
+
+# Flujo operacional
+
+Cómo cortar un release real, monitorearlo y resolver problemas.
+
+## Cutting a release
+
+```bash
+# 1. bump version (commit + tag happen here)
+bun pm version patch   # o minor / major; o editar package.json + git tag manualmente
+
+# 2. push commit + tag — la Action se encarga del resto
+git push origin main --follow-tags
+```
+
+`bun pm version patch` actualiza `package.json` y crea el commit (`vX.Y.Z`) y el tag en un solo paso. `--follow-tags` los pushea atómicamente.
+
+La Action corre cuatro jobs en secuencia:
+
+```
+validate (tag == package.json version)
+   └── build matrix en paralelo:
+         macos-14         → darwin-arm64
+         macos-15-intel   → darwin-x86_64
+         ubuntu-latest    → linux-x86_64
+         ubuntu-24.04-arm → linux-arm64
+       c/u: bun test + cargo test, luego package.ts emite
+            pscanner_<ver>_<target>.tar.gz + .sha256
+   └── release: empaqueta los 4 artifacts en un GitHub Release vX.Y.Z
+   └── tap: regenera Formula/pscanner.rb en FedericoDeniard/homebrew-tap
+            con los nuevos urls + sha256s, después commit & push
+```
+
+Todos los builds gatean con tests: si `bun test` o `cargo test` falla, no se publica nada.
+
+## Watching the pipeline
+
+```bash
+gh run list --workflow release --limit 1
+gh run watch $(gh run list --workflow release --limit 1 --json databaseId -q '.[0].databaseId')
+```
+
+O abrir el run URL en browser — `gh run view <id> --web`.
+
+Cuando termina, verificar ambos lados:
+
+```bash
+gh release view vX.Y.Z --repo FedericoDeniard/PortScanner
+gh api repos/FedericoDeniard/homebrew-tap/contents/Formula/pscanner.rb \
+    -q .content | base64 -d
+```
+
+## Local dry-run (sin GitHub)
+
+Construir un solo target localmente sin pushear:
+
+```bash
+bun run scripts/package.ts --target darwin-arm64 --version X.Y.Z --out release
+```
+
+Produce `release/pscanner_X.Y.Z_darwin-arm64.tar.gz` + `.sha256`. Útil para
+sanity-check del binario antes de taggear.
+
+## Secret requerido
+
+`TAP_GITHUB_TOKEN` — fine-grained PAT con **Contents: read and write** acceso
+**solo** a `FedericoDeniard/homebrew-tap`. Creado una vez en
+<https://github.com/settings/tokens?type=beta> y guardado como secret del repo
+PortScanner con `gh secret set TAP_GITHUB_TOKEN --repo
+FedericoDeniard/PortScanner`. El default `GITHUB_TOKEN` no puede llegar al tap
+repo (es otro repo). Si el job `tap` falla con 403, el PAT expiró o perdió
+acceso — regenerar y re-set.
+
+## Troubleshooting
+
+| Síntoma | Causa | Fix |
+| --- | --- | --- |
+| `validate` falla: tag version != package.json | El tag apunta a un commit donde la versión no matchea | Correr `bun pm version patch` antes de `git push`; o amendear el commit para que coincida |
+| Un job `build` queda en cola infinito y se cancela | El runner fue deprecado / removido (ej. `macos-13` en 2025) | Reemplazar el `runs-on:` en el matrix de `.github/workflows/release.yml` con el runner actual (`macos-15-intel`, `macos-14-large`, etc.). Referencia: <https://github.com/actions/runner-images> |
+| `release` falla: `failed to run git: fatal: not a git repository` | El job `release` no tiene `actions/checkout`, entonces `gh release view` no puede resolver contexto git | Asegurar que `- uses: actions/checkout@v4` sea el primer step de `release` |
+| `tap` falla: `release not found` | `VERSION` env var está vacío | El job `tap` debe declarar `needs: [validate, release]` (no solo `release`) para que `needs.validate.outputs.version` resuelva |
+| `tap` sale verde pero `Formula/pscanner.rb` no aparece en el tap | `git diff --quiet Formula/pscanner.rb` retorna 0 para archivos untracked, así que el commit se saltea | Usar `git diff --cached --quiet` después de `git add` |
+| La fórmula del tap queda igual después de un release | `gh release download` no encontró el release (a menudo porque el previo estaba en draft) | `gh release edit vX.Y.Z --repo FedericoDeniard/PortScanner --draft=false` |
+| Brew del usuario crashea con `JSON::Ext::Generator::State` / `default_sort_keys_proc=` | Bug en su Homebrew 7.0.2 — gem `json-3.0.2` roto en `vendor/bundle` (no es nuestra fórmula) | El usuario corre `HOMEBREW_NO_BOOTSNAP=1 brew install pscanner`, o `gem pristine json`, o reinstala brew |
+
+## Re-publicar la misma versión
+
+No. Si una release salió mal, **bumpear a una nueva versión**:
+
+```bash
+bun pm version patch   # 1.1.2 → 1.1.3
+git push --follow-tags
+```
+
+Re-tag del mismo commit (`git tag -f vX.Y.Z && git push --follow-tags --force`)
+funciona pero ensucia la historia del Release y confunde la comparación de
+versiones de brew.
+
+## Rolling back una release mala
+
+```bash
+gh release delete vX.Y.Z --repo FedericoDeniard/PortScanner --yes
+git tag -d vX.Y.Z
+git push origin :refs/tags/vX.Y.Z
+```
+
+Después revertir la fórmula del tap en `FedericoDeniard/homebrew-tap` al
+commit previo conocido-bueno (la historia de git del homebrew-tap repo es el
+audit trail).
+
+## Cambios en la fórmula o el workflow
+
+- **Fórmula**: editar `scripts/gen-formula.ts` (no `Formula/pscanner.rb` en el
+  tap — eso se regenera siempre).
+- **Workflow**: editar `.github/workflows/release.yml` y pushear a main. El
+  próximo tag usa el workflow nuevo.
 6. Documentar en `README.md` y `AGENTS.md`.
 7. (Por el usuario) Crear PAT + secret. (Por mí, una vez) Crear `homebrew-tap`.
 8. Tag de prueba `v1.1.0` → verificar pipeline completo.

@@ -5,12 +5,13 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+permissions: read-all
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
@@ -40,6 +41,8 @@ jobs:
           - os: ubuntu-24.04-arm
             target: linux-arm64
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -67,6 +70,8 @@ jobs:
   release:
     needs: [validate, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
@@ -93,6 +98,8 @@ jobs:
   tap:
     needs: [validate, release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       VERSION: ${{ needs.validate.outputs.version }}
       TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
@@ -136,7 +143,8 @@ jobs:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/FedericoDeniard/homebrew-tap.git" tap
+          echo "${TAP_TOKEN}" | gh auth login --with-token
+          gh repo clone FedericoDeniard/homebrew-tap tap -- --quiet
           cd tap
           mkdir -p Formula
           cp ../Formula/pscanner.rb Formula/pscanner.rb
