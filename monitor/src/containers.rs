@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::io::{Read, Write};
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -162,9 +163,22 @@ fn host_lookup_key(p: &PortEntry) -> Option<(String, u16)> {
 }
 
 fn discover_socket() -> Option<PathBuf> {
+    let check = |path: &Path| -> bool {
+        if socket_is_trusted(path) {
+            true
+        } else {
+            eprintln!(
+                "[portmon] docker socket at {} is not owned by current user, skipping",
+                path.display()
+            );
+            false
+        }
+    };
+
     if let Ok(dh) = env::var("DOCKER_HOST") {
         if let Some(path) = dh.strip_prefix("unix://") {
-            return Some(PathBuf::from(path));
+            let path = PathBuf::from(path);
+            return if check(&path) { Some(path) } else { None };
         }
         return None;
     }
@@ -173,13 +187,13 @@ fn discover_socket() -> Option<PathBuf> {
             home.join(".orbstack/run/docker.sock"),
             home.join(".docker/run/docker.sock"),
         ] {
-            if candidate.exists() {
+            if candidate.exists() && check(&candidate) {
                 return Some(candidate);
             }
         }
     }
     let default = PathBuf::from("/var/run/docker.sock");
-    if default.exists() {
+    if default.exists() && check(&default) {
         return Some(default);
     }
     None
@@ -187,6 +201,28 @@ fn discover_socket() -> Option<PathBuf> {
 
 fn dirs_home() -> Option<PathBuf> {
     env::var_os("HOME").map(PathBuf::from)
+}
+
+fn socket_is_trusted(path: &Path) -> bool {
+    // NOTE: this check is racy (TOCTOU between symlink_metadata and connect).
+    // An attacker who can write inside the candidate directory could replace the
+    // socket between these two calls. We treat this as a first-line guard
+    // against the common case (a planted regular file or a misowned socket);
+    // a full mitigation would require opening the fd and fstat'ing it after
+    // connect, which we skip here to keep the existing UnixStream::connect
+    // call sites unchanged.
+    let md = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    if !md.file_type().is_socket() {
+        return false;
+    }
+    let owner = md.uid();
+    // libc::getuid is async-signal-safe and cannot fail; the unsafe is just
+    // the usual FFI requirement.
+    let me = unsafe { libc::getuid() };
+    owner == me || owner == 0
 }
 
 fn fetch_containers(socket: &Path) -> Result<Vec<ContainerInfo>, String> {
@@ -424,5 +460,38 @@ mod tests {
         p.state = Some("ESTABLISHED".into());
         let out = store.attach(vec![p]);
         assert!(out[0].container_id.is_none());
+    }
+
+    fn temp_socket_path(name: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!("portmon-test-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    #[test]
+    fn socket_is_trusted_rejects_regular_file() {
+        let path = temp_socket_path("regular.txt");
+        std::fs::write(&path, b"not a socket").unwrap();
+        let result = socket_is_trusted(&path);
+        let _ = std::fs::remove_file(&path);
+        assert!(!result);
+    }
+
+    #[test]
+    fn socket_is_trusted_rejects_nonexistent() {
+        let path = temp_socket_path("missing.sock");
+        assert!(!path.exists());
+        assert!(!socket_is_trusted(&path));
+    }
+
+    #[test]
+    fn socket_is_trusted_accepts_real_socket() {
+        let path = temp_socket_path("real.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        let result = socket_is_trusted(&path);
+        drop(listener);
+        let _ = std::fs::remove_file(&path);
+        assert!(result);
     }
 }
