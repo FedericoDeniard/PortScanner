@@ -187,6 +187,10 @@ impl Filter {
 mod tests {
     use super::*;
 
+    const TEST_OPEN_CWD: &str = "/Users/test/dev/project";
+    const TEST_CWD: &str = "/Users/test/projects/project";
+    const TEST_EXE: &str = "/Users/test/.nvm/versions/node/.../bin/node";
+
     fn entry() -> PortEntry {
         PortEntry {
             protocol: Protocol::Tcp,
@@ -285,13 +289,13 @@ mod tests {
         }
 
         let cmd: Command = serde_json::from_str(
-            r#"{"cmd":"open_terminal","pid":7,"cwd":"/Users/fede/dev/hub"}"#,
+            r#"{"cmd":"open_terminal","pid":7,"cwd":"/Users/test/dev/project"}"#,
         )
         .unwrap();
         match cmd {
             Command::OpenTerminal { pid, cwd } => {
                 assert_eq!(pid, 7);
-                assert_eq!(cwd.as_deref(), Some("/Users/fede/dev/hub"));
+                assert_eq!(cwd.as_deref(), Some(TEST_OPEN_CWD));
             }
             _ => panic!("wrong variant"),
         }
@@ -324,15 +328,15 @@ mod tests {
     #[test]
     fn entry_serialization_includes_optional_cwd_exe() {
         let mut e = entry();
-        e.cwd = Some("/Users/fede/projects/hub".into());
-        e.exe = Some("/Users/fede/.nvm/versions/node/.../bin/node".into());
+        e.cwd = Some(TEST_CWD.into());
+        e.exe = Some(TEST_EXE.into());
         let json = serde_json::to_string(&e).unwrap();
-        assert!(json.contains("\"cwd\":\"/Users/fede/projects/hub\""));
+        assert!(json.contains(&format!("\"cwd\":\"{TEST_CWD}\"")));
         assert!(json.contains("\"exe\":"));
 
         let parsed: PortEntry = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.cwd.as_deref(), Some("/Users/fede/projects/hub"));
-        assert_eq!(parsed.exe.as_deref(), Some("/Users/fede/.nvm/versions/node/.../bin/node"));
+        assert_eq!(parsed.cwd.as_deref(), Some(TEST_CWD));
+        assert_eq!(parsed.exe.as_deref(), Some(TEST_EXE));
     }
 
     #[test]
