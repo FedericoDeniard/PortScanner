@@ -2,6 +2,8 @@ node_modules/
 monitor/target/
 monitor/Cargo.lock
 dist/
+release/
 *.log
 *.bun-build
 .*.bun-build
+pnpm-lock.yaml

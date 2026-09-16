@@ -60,6 +60,21 @@ updates are sent as deltas to keep the wire format compact.
 
 ## Install
 
+### Homebrew (recommended)
+
+```bash
+brew tap federicodeniard/tap
+brew install pscanner
+```
+
+Supports macOS (Apple Silicon + Intel) and Linux (x86_64 + arm64). To upgrade:
+
+```bash
+brew update && brew upgrade pscanner
+```
+
+### From source
+
 ```bash
 git clone https://github.com/FedericoDeniard/PortScanner.git
 cd PortScanner
@@ -83,7 +98,8 @@ binary with `bun build --compile`, then symlinks it into:
 If `~/.local/bin` is not on your `PATH`, the installer prints the export line
 to add.
 
-After installation:
+After installation (source install only — Homebrew users use
+`brew upgrade pscanner`):
 
 ```bash
 pscanner            # launch the TUI
@@ -147,7 +163,9 @@ cargo test --manifest-path monitor/Cargo.toml   # Rust tests (proto, diff, scan,
 ├── index.tsx               TUI entry point — renderer + <App />
 ├── scripts/
 │   ├── install.ts          Build, bundle, link into ~/.local
-│   └── uninstall.ts        Remove symlinks and ~/.local/share/pscanner
+│   ├── uninstall.ts        Remove symlinks and ~/.local/share/pscanner
+│   ├── package.ts          Build + tar.gz + sha256 for a single target
+│   └── gen-formula.ts      Render Formula/pscanner.rb from env inputs
 ├── monitor/                Rust crate (portmon)
 │   └── src/
 │       ├── main.rs         Scan loop + stdin command channel
@@ -164,8 +182,11 @@ cargo test --manifest-path monitor/Cargo.toml   # Rust tests (proto, diff, scan,
 │   ├── store.tsx           MonitorProvider + usePorts() hook
 │   ├── grouping.ts         Roll sockets up under their owning app
 │   └── theme.ts            Design tokens (see design.md)
+├── .github/workflows/
+│   └── release.yml         Tag-driven release: builds, publishes, updates tap
 ├── design.md               Visual system (palette, typography, spacing)
-└── investigacion-puertos.md  Notes on how sockets are discovered on macOS
+├── investigacion-puertos.md  Notes on how sockets are discovered on macOS
+└── BREW_RELEASE.md         Audit trail for the Homebrew tap automation
 ```
 
 `src/monitor/protocol.ts` is a hand-maintained mirror of `monitor/src/proto.rs`

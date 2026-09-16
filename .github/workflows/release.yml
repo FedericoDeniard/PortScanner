@@ -1,0 +1,150 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(jq -r .version package.json)
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::tag version ($TAG) != package.json ($PKG)"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: darwin-arm64
+          - os: macos-13
+            target: darwin-x86_64
+          - os: ubuntu-latest
+            target: linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor -> .cargo
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Tests
+        run: |
+          bun test
+          cargo test --manifest-path monitor/Cargo.toml
+      - name: Package
+        run: bun run scripts/package.ts --target ${{ matrix.target }} --version ${{ needs.validate.outputs.version }} --out release
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: release/pscanner_${{ needs.validate.outputs.version }}_${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists, uploading assets only"
+            gh release upload "v${VERSION}" ./release/*.tar.gz --clobber
+          else
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              ./release/*.tar.gz
+          fi
+
+  tap:
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+      TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p assets
+          gh release download "v${VERSION}" --dir assets
+      - name: Compute sha256
+        id: sha
+        run: |
+          cd assets
+          : > ../sha256.env
+          for f in *.tar.gz; do
+            target="${f#pscanner_*_}"
+            target="${target%.tar.gz}"
+            key=$(echo "$target" | tr 'a-z-' 'A-Z_')
+            sha=$(sha256sum "$f" | awk '{print $1}')
+            echo "SHA_${key}=${sha}" >> ../sha256.env
+          done
+          cat ../sha256.env
+      - name: Generate formula
+        working-directory: ${{ github.workspace }}
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          URL_DARWIN_ARM64: https://github.com/${{ github.repository }}/releases/download/v${{ needs.validate.outputs.version }}/pscanner_${{ needs.validate.outputs.version }}_darwin-arm64.tar.gz
+          URL_DARWIN_X86_64: https://github.com/${{ github.repository }}/releases/download/v${{ needs.validate.outputs.version }}/pscanner_${{ needs.validate.outputs.version }}_darwin-x86_64.tar.gz
+          URL_LINUX_X86_64: https://github.com/${{ github.repository }}/releases/download/v${{ needs.validate.outputs.version }}/pscanner_${{ needs.validate.outputs.version }}_linux-x86_64.tar.gz
+          URL_LINUX_ARM64: https://github.com/${{ github.repository }}/releases/download/v${{ needs.validate.outputs.version }}/pscanner_${{ needs.validate.outputs.version }}_linux-arm64.tar.gz
+        run: |
+          set -a; source sha256.env; set +a
+          bun run scripts/gen-formula.ts --out Formula/pscanner.rb
+      - name: Push to homebrew-tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/FedericoDeniard/homebrew-tap.git" tap
+          cd tap
+          mkdir -p Formula
+          cp ../Formula/pscanner.rb Formula/pscanner.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet Formula/pscanner.rb; then
+            echo "No changes to Formula/pscanner.rb"
+            exit 0
+          fi
+          git add Formula/pscanner.rb
+          git commit -m "pscanner v${VERSION}"
+          git push

@@ -11,9 +11,11 @@ TCP/UDP port viewer/scanner in use on the local machine, built as a TUI with **O
 | `bun run build:monitor` | Compiles the Rust monitor in release. |
 | `bun run install` | Full build (Rust release + TUI self-contained) and installs `pscanner` in `~/.local/bin`. |
 | `pscanner help` | Lists subcommands (`version`, `update`, `uninstall`, `help`); same as `--help` / `-h`. |
-| `pscanner update` | Re-runs install (reads `sourceDir` from `~/.local/share/pscanner/config.json`). |
-| `pscanner uninstall` | Removes symlinks in `~/.local/bin` and `~/.local/share/pscanner/`. |
+| `pscanner update` | Re-runs install (reads `sourceDir` from `~/.local/share/pscanner/config.json`). Brew users: use `brew upgrade pscanner` instead. |
+| `pscanner uninstall` | Removes symlinks in `~/.local/bin` and `~/.local/share/pscanner/`. Brew users: use `brew uninstall pscanner`. |
 | `bun run uninstall` | Same as `pscanner uninstall` but invoked from the source tree. |
+| `bun run scripts/package.ts --target <target>` | Builds monitor + TUI for one platform target and emits `release/pscanner_<ver>_<target>.tar.gz` + `.sha256`. Targets: `darwin-arm64`, `darwin-x86_64`, `linux-x86_64`, `linux-arm64`. Used by CI; not needed locally. |
+| `bun run scripts/gen-formula.ts` | Renders `Formula/pscanner.rb` from `VERSION` + `URL_<TARGET>` + `SHA_<TARGET>` env vars. Used by CI. |
 | `bun test` | TS tests (`bun:test`) + Rust tests (`cargo test`). |
 
 Package manager: **bun** (lockfile `bun.lock`). Rust toolchain: **cargo** (crate in `monitor/`).
@@ -35,7 +37,9 @@ There is no TS build step: `bun run index.tsx` directly. The Rust binary lands i
 ├── index.tsx               # Entry point: renderer + <App />, ports table
 ├── scripts/                # Build/install orchestrators
 │   ├── install.ts          # `bun run install`: release build + bundle + link in ~/.local/bin
-│   └── uninstall.ts        # `bun run uninstall`: removes symlinks and ~/.local/share/pscanner
+│   ├── uninstall.ts        # `bun run uninstall`: removes symlinks and ~/.local/share/pscanner
+│   ├── package.ts          # build + tar.gz + sha256 for a single platform target
+│   └── gen-formula.ts      # render Formula/pscanner.rb from env inputs
 ├── monitor/                # Rust crate: socket monitor (child process)
 │   ├── Cargo.toml
 │   └── src/
@@ -51,8 +55,11 @@ There is no TS build step: `bun run index.tsx` directly. The Rust binary lands i
 │   │   └── client.ts       # MonitorClient: spawn, parse, commands, dispose
 │   ├── store.tsx           # MonitorProvider (Context+reducer) + usePorts()
 │   └── theme.ts            # Color/spacing tokens
+├── .github/workflows/
+│   └── release.yml         # Tag-driven release: builds, publishes, updates tap
 ├── design.md               # Design system (palette, tokens, components)
 ├── investigacion-puertos.md # Port research notes on macOS
+├── BREW_RELEASE.md         # Audit trail for the Homebrew tap automation
 ├── opencode.json           # opencode config (loads design.md as instructions)
 ├── package.json
 ├── bun.lock
@@ -106,3 +113,20 @@ Before creating a component or adding a color, **consult `design.md`**.
 - `console.log` inside the TUI is not visible in the terminal: it goes to the OpenTUI console overlay (toggle with `renderer.console.toggle()`); the Rust monitor's stderr is forwarded there.
 - Never `process.exit()` directly: it leaves the terminal broken. Use `renderer.destroy()`.
 - The Rust monitor detects EOF on stdin and closes on its own; still, `MonitorClient.dispose()` sends `shutdown` and `kill()`s as a fallback after timeout.
+
+## Release flow
+
+The tag-driven workflow at `.github/workflows/release.yml` builds a tarball per target (macOS arm64/Intel, Linux x86_64/arm64), uploads them to a GitHub Release, and rewrites `Formula/pscanner.rb` in `FedericoDeniard/homebrew-tap`.
+
+To cut a release:
+
+```bash
+# 1. bump version in package.json
+npm version patch   # or minor / major
+# 2. push the tag — the workflow takes care of everything
+git push --follow-tags
+```
+
+Required secret: `TAP_GITHUB_TOKEN` — a fine-grained PAT with **Contents: read and write** access **only** to `FedericoDeniard/homebrew-tap`. Created once on <https://github.com/settings/tokens?type=beta> and saved as a repository secret. The default `GITHUB_TOKEN` cannot reach the tap repo.
+
+Tap audit and design notes live in [`BREW_RELEASE.md`](./BREW_RELEASE.md).
