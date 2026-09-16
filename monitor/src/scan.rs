@@ -323,7 +323,7 @@ mod tests {
         for p in [
             "/Applications/Spotify.app/Contents/MacOS/Spotify",
             "/Applications/OrbStack.app/Contents/MacOS/OrbStack Helper",
-            "/Users/federicodeniard/Applications/Some.app/Contents/MacOS/Some",
+            "/Users/test/Applications/Some.app/Contents/MacOS/Some",
         ] {
             assert_eq!(
                 classify(Some(&PathBuf::from(p))),
@@ -336,9 +336,9 @@ mod tests {
     #[test]
     fn user_dev_paths() {
         for p in [
-            "/Users/federicodeniard/projects/hub/node_modules/.bin/vite",
-            "/Users/federicodeniard/.cargo/bin/cargo",
-            "/Users/fede/dev/something/target/debug/server",
+            "/Users/test/projects/project/node_modules/.bin/vite",
+            "/Users/test/.cargo/bin/cargo",
+            "/Users/test/dev/project/target/debug/server",
         ] {
             assert_eq!(
                 classify(Some(&PathBuf::from(p))),
@@ -456,7 +456,7 @@ mod tests {
         assert_eq!(
             detect_runtime(
                 "node",
-                Some(&PathBuf::from("/Users/fede/dev/hub/node_modules/.bin/node")),
+                Some(&PathBuf::from("/Users/test/dev/project/node_modules/.bin/node")),
             ),
             None
         );

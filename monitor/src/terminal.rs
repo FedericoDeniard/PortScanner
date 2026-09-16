@@ -359,6 +359,8 @@ struct KittyPane {
 mod tests {
     use super::*;
 
+    const TEST_BASE: &str = "/Users/test/dev/project";
+
     #[test]
     fn parse_tty_short_name() {
         assert_eq!(parse_tty("ttys003\n"), Some(PathBuf::from("/dev/ttys003")));
@@ -398,33 +400,30 @@ mod tests {
 
     #[test]
     fn cwd_inside_exact_match() {
-        assert!(cwd_inside(
-            "/Users/fede/dev/hub",
-            "/Users/fede/dev/hub"
-        ));
+        assert!(cwd_inside(TEST_BASE, TEST_BASE));
     }
 
     #[test]
     fn cwd_inside_subdirectory() {
         assert!(cwd_inside(
-            "/Users/fede/dev/hub/apps/api",
-            "/Users/fede/dev/hub"
+            &format!("{TEST_BASE}/apps/api"),
+            TEST_BASE
         ));
     }
 
     #[test]
     fn cwd_inside_rejects_sibling_with_shared_prefix() {
         assert!(!cwd_inside(
-            "/Users/fede/dev/hub-extra",
-            "/Users/fede/dev/hub"
+            &format!("{TEST_BASE}-extra"),
+            TEST_BASE
         ));
     }
 
     #[test]
     fn cwd_inside_rejects_parent() {
         assert!(!cwd_inside(
-            "/Users/fede/dev",
-            "/Users/fede/dev/hub"
+            "/Users/test/dev",
+            TEST_BASE
         ));
     }
 }
