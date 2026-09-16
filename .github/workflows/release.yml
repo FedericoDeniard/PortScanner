@@ -142,10 +142,10 @@ jobs:
           cp ../Formula/pscanner.rb Formula/pscanner.rb
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet Formula/pscanner.rb; then
+          git add Formula/pscanner.rb
+          if git diff --cached --quiet; then
             echo "No changes to Formula/pscanner.rb"
             exit 0
           fi
-          git add Formula/pscanner.rb
           git commit -m "pscanner v${VERSION}"
           git push
