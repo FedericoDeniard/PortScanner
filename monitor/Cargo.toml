@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 battery = "0.7"
 netstat2 = "0.11"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.33"

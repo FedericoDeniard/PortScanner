@@ -115,6 +115,11 @@ impl ContainerStore {
     }
 
     pub fn stop(&self, id: &str) -> Result<(), String> {
+        if !valid_container_id(id) {
+            return Err(format!(
+                "invalid container id {id:?}: expected [A-Za-z0-9_-]{{6,64}}"
+            ));
+        }
         let socket = self
             .socket
             .as_ref()
@@ -187,6 +192,15 @@ fn discover_socket() -> Option<PathBuf> {
 
 fn dirs_home() -> Option<PathBuf> {
     env::var_os("HOME").map(PathBuf::from)
+}
+
+fn valid_container_id(id: &str) -> bool {
+    let len = id.len();
+    if len < 6 || len > 64 {
+        return false;
+    }
+    id.bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 fn fetch_containers(socket: &Path) -> Result<Vec<ContainerInfo>, String> {
@@ -424,5 +438,29 @@ mod tests {
         p.state = Some("ESTABLISHED".into());
         let out = store.attach(vec![p]);
         assert!(out[0].container_id.is_none());
+    }
+
+    #[test]
+    fn valid_container_id_accepts_canonical_shapes() {
+        assert!(valid_container_id("abcdef123456"));
+        assert!(valid_container_id("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"));
+        assert!(valid_container_id("abc_def-1"));
+    }
+
+    #[test]
+    fn valid_container_id_rejects_query_injection() {
+        assert!(!valid_container_id("abc?def"));
+        assert!(!valid_container_id("abc def"));
+        assert!(!valid_container_id("abc/def"));
+        assert!(!valid_container_id("abc.def"));
+        assert!(!valid_container_id(""));
+        assert!(!valid_container_id("short"));
+    }
+
+    #[test]
+    fn stop_rejects_malformed_id_without_touching_socket() {
+        let store = ContainerStore::new();
+        let err = store.stop("abc?def HTTP/1.1\r\nHost: x").unwrap_err();
+        assert!(err.contains("invalid container id"));
     }
 }
