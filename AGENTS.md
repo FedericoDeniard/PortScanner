@@ -58,7 +58,6 @@ There is no TS build step: `bun run index.tsx` directly. The Rust binary lands i
 ├── .github/workflows/
 │   └── release.yml         # Tag-driven release: builds, publishes, updates tap
 ├── design.md               # Design system (palette, tokens, components)
-├── investigacion-puertos.md # Port research notes on macOS
 ├── BREW_RELEASE.md         # Audit trail for the Homebrew tap automation
 ├── opencode.json           # opencode config (loads design.md as instructions)
 ├── package.json
@@ -91,7 +90,7 @@ The TS types (`src/monitor/protocol.ts`) are a manual mirror of `monitor/src/pro
 - **ESM imports** without extension: `import { createCliRenderer } from "@opentui/core"`.
 - **No unnecessary comments** in code.
 - **Color tokens**: always import from `design.md` (via opencode.json) — do not hardcode hex codes in new components.
-- **System commands**: to discover ports we use `lsof` (see `investigacion-puertos.md`).
+- **System commands**: to discover ports we use `lsof`.
 
 ## Design
 

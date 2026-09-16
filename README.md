@@ -185,7 +185,6 @@ cargo test --manifest-path monitor/Cargo.toml   # Rust tests (proto, diff, scan,
 ├── .github/workflows/
 │   └── release.yml         Tag-driven release: builds, publishes, updates tap
 ├── design.md               Visual system (palette, typography, spacing)
-├── investigacion-puertos.md  Notes on how sockets are discovered on macOS
 └── BREW_RELEASE.md         Audit trail for the Homebrew tap automation
 ```
 
