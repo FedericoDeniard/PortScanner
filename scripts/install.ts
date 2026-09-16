@@ -126,6 +126,10 @@ function installBinaries() {
     join(PROJECT_ROOT, "scripts", "install.ts"),
     join(SHARE_DIR, "install.ts"),
   )
+  copyFileSync(
+    join(PROJECT_ROOT, "scripts", "uninstall.ts"),
+    join(SHARE_DIR, "uninstall.ts"),
+  )
 }
 
 function writeConfig() {
