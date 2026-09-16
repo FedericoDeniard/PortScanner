@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpenResult {
@@ -262,10 +263,22 @@ fn parse_tty(raw: &str) -> Option<PathBuf> {
     if trimmed.is_empty() || trimmed == "?" || trimmed.starts_with("??") {
         return None;
     }
+    if !valid_tty_path(trimmed) {
+        return None;
+    }
     if trimmed.starts_with('/') {
         return Some(PathBuf::from(trimmed));
     }
     Some(PathBuf::from(format!("/dev/{trimmed}")))
+}
+
+fn valid_tty_path(s: &str) -> bool {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        regex::Regex::new(r"^(/dev/)?(ttys|pts|ptmx|tty|console)[A-Za-z0-9/._-]*$")
+            .expect("valid tty regex")
+    });
+    re.is_match(s)
 }
 
 fn which(cmd: &str) -> Option<PathBuf> {
@@ -426,5 +439,35 @@ mod tests {
             "/Users/fede/dev",
             "/Users/fede/dev/hub"
         ));
+    }
+
+    #[test]
+    fn valid_tty_path_accepts_canonical_shapes() {
+        assert!(valid_tty_path("/dev/ttys003"));
+        assert!(valid_tty_path("/dev/pts/5"));
+        assert!(valid_tty_path("/dev/ptmx"));
+        assert!(valid_tty_path("/dev/tty"));
+        assert!(valid_tty_path("/dev/console"));
+        assert!(valid_tty_path("ttys003"));
+        assert!(valid_tty_path("pts/5"));
+    }
+
+    #[test]
+    fn valid_tty_path_rejects_applescript_injection() {
+        assert!(!valid_tty_path("/dev/ttys003\" & do shell script \"rm -rf /"));
+        assert!(!valid_tty_path("/dev/ttys003\nend tell\ndo shell script \"id\""));
+        assert!(!valid_tty_path("/dev/ttys003\"")); 
+        assert!(!valid_tty_path("/dev/ttys003;"));
+        assert!(!valid_tty_path("/dev/ttys003$()"));
+        assert!(!valid_tty_path("/dev/ttys003`id`"));
+        assert!(!valid_tty_path("/etc/passwd"));
+        assert!(!valid_tty_path(""));
+        assert!(!valid_tty_path("whoami"));
+    }
+
+    #[test]
+    fn parse_tty_drops_injected_value() {
+        assert!(parse_tty("/dev/ttys003\" & do shell script \"rm -rf /\"").is_none());
+        assert!(parse_tty("ttys003\"\nend tell\n").is_none());
     }
 }
