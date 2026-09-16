@@ -113,19 +113,7 @@ Before creating a component or adding a color, **consult `design.md`**.
 - Never `process.exit()` directly: it leaves the terminal broken. Use `renderer.destroy()`.
 - The Rust monitor detects EOF on stdin and closes on its own; still, `MonitorClient.dispose()` sends `shutdown` and `kill()`s as a fallback after timeout.
 
-## Release flow
+## Releases
 
-The tag-driven workflow at `.github/workflows/release.yml` builds a tarball per target (macOS arm64/Intel, Linux x86_64/arm64), uploads them to a GitHub Release, and rewrites `Formula/pscanner.rb` in `FedericoDeniard/homebrew-tap`.
-
-To cut a release:
-
-```bash
-# 1. bump version in package.json
-npm version patch   # or minor / major
-# 2. push the tag — the workflow takes care of everything
-git push --follow-tags
-```
-
-Required secret: `TAP_GITHUB_TOKEN` — a fine-grained PAT with **Contents: read and write** access **only** to `FedericoDeniard/homebrew-tap`. Created once on <https://github.com/settings/tokens?type=beta> and saved as a repository secret. The default `GITHUB_TOKEN` cannot reach the tap repo.
-
-Tap audit and design notes live in [`BREW_RELEASE.md`](./BREW_RELEASE.md).
+See [`BREW_RELEASE.md`](./BREW_RELEASE.md) for the full release flow —
+cutting a release, watching the pipeline, troubleshooting, rollback.
