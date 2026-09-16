@@ -91,7 +91,7 @@ jobs:
           fi
 
   tap:
-    needs: release
+    needs: [validate, release]
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.validate.outputs.version }}
