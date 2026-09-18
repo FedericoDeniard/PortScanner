@@ -391,12 +391,15 @@ function ColumnsHeader({
       {columns.map((col) => {
         const isMuted = muted.has(col.key)
         const label = isMuted ? muteLabel(col.label) : col.label
-        const padded = col.width ? label.padEnd(col.width) : label
+        const minWidth = col.width
+          ? Math.max(col.width + 1, label.length + 1)
+          : 0
+        const padded = label.padEnd(minWidth)
         return (
           <box
             key={col.key}
             onMouseDown={() => onToggle(col.key)}
-            style={{ width: col.width || undefined, flexShrink: 0 }}
+            style={{ flexShrink: 0 }}
           >
             <text fg={colors.base}>{padded}</text>
           </box>
