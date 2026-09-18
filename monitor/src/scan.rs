@@ -55,6 +55,8 @@ impl Scanner {
                     container_name: None,
                     container_image: None,
                     container_port: None,
+                    cpu_percent: None,
+                    memory_bytes: None,
                     category: Category::UserApp,
                 }),
                 ProtocolSocketInfo::Udp(udp) => out.push(PortEntry {
@@ -75,6 +77,8 @@ impl Scanner {
                     container_name: None,
                     container_image: None,
                     container_port: None,
+                    cpu_percent: None,
+                    memory_bytes: None,
                     category: Category::UserApp,
                 }),
             }
@@ -89,6 +93,8 @@ impl Scanner {
                     let pexe = process.exe().map(|p| p.to_path_buf());
                     entry.process_name = Some(pname.clone());
                     entry.exe = pexe.as_ref().map(|p| p.to_string_lossy().into_owned());
+                    entry.cpu_percent = Some(process.cpu_usage());
+                    entry.memory_bytes = Some(process.memory());
                     if let Some(runtime) = detect_runtime(&pname, pexe.as_deref()) {
                         entry.container_runtime = Some(runtime.to_string());
                         entry.category = Category::Container;

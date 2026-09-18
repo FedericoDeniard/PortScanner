@@ -9,6 +9,8 @@ export type ColumnKey =
   | "cwd"
   | "name"
   | "image"
+  | "cpu"
+  | "mem"
   | "addr"
 
 export type ColumnSpec = {
@@ -24,6 +26,8 @@ const PORT_COLUMNS: ColumnSpec[] = [
   { key: "pid", label: "PID", width: 7 },
   { key: "process", label: "PROCESS", width: 24 },
   { key: "cwd", label: "CWD", width: 40 },
+  { key: "cpu", label: "CPU%", width: 6 },
+  { key: "mem", label: "RSS", width: 8 },
   { key: "addr", label: "LOCAL ADDR", width: 0 },
 ]
 
@@ -34,6 +38,8 @@ const CONTAINER_COLUMNS: ColumnSpec[] = [
   { key: "pid", label: "PID", width: 7 },
   { key: "name", label: "NAME", width: 24 },
   { key: "image", label: "IMAGE", width: 40 },
+  { key: "cpu", label: "CPU%", width: 6 },
+  { key: "mem", label: "RSS", width: 8 },
   { key: "addr", label: "LOCAL ADDR", width: 0 },
 ]
 
@@ -70,6 +76,29 @@ function formatContainerLabel(p: PortEntry): string {
   return String(p.localPort)
 }
 
+export function formatCpuPercent(value: number | undefined, width: number): string {
+  if (value == null || !Number.isFinite(value)) return "—".padEnd(width)
+  const text = `${value.toFixed(1)}%`
+  return text.padEnd(width)
+}
+
+export function formatBytesShort(value: number | undefined, width: number): string {
+  if (value == null || !Number.isFinite(value)) return "—".padEnd(width)
+  const units = ["B", "K", "M", "G", "T"]
+  let scaled = value
+  let unit = 0
+  while (scaled >= 1000 && unit < units.length - 1) {
+    scaled /= 1000
+    unit += 1
+  }
+  const text = scaled >= 100 || unit === 0
+    ? `${Math.round(scaled)}${units[unit]}`
+    : scaled >= 10
+      ? `${scaled.toFixed(1)}${units[unit]}`
+      : `${scaled.toFixed(2)}${units[unit]}`
+  return text.padEnd(width)
+}
+
 export function getCellValue(port: PortEntry, key: ColumnKey, width: number): string {
   switch (key) {
     case "port":
@@ -94,6 +123,10 @@ export function getCellValue(port: PortEntry, key: ColumnKey, width: number): st
       )
     case "image":
       return width ? truncateTrailing(port.containerImage ?? "—", width) : (port.containerImage ?? "—")
+    case "cpu":
+      return formatCpuPercent(port.cpuPercent, width)
+    case "mem":
+      return formatBytesShort(port.memoryBytes, width)
     case "addr":
       return port.localAddr
   }

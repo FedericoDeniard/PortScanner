@@ -20,6 +20,8 @@ export type PortEntry = {
   containerName?: string
   containerImage?: string
   containerPort?: number
+  cpuPercent?: number
+  memoryBytes?: number
   category: Category
 }
 
@@ -56,6 +58,7 @@ export type MonitorEvent =
   | { type: "hello"; version: number; pid: number }
   | { type: "snapshot"; seq: number; ports: PortEntry[] }
   | { type: "delta"; seq: number; added: PortEntry[]; removed: PortEntry[] }
+  | { type: "portsupdated"; seq: number; ports: PortEntry[] }
   | { type: "ack"; cmd: string; pid?: number; ok: boolean; error?: string }
   | {
       type: "opened"

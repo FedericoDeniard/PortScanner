@@ -36,7 +36,17 @@ describe("COLUMN_LAYOUTS", () => {
     const userDev = COLUMN_LAYOUTS["user-dev"]
     const userApp = COLUMN_LAYOUTS["user-app"]
     const system = COLUMN_LAYOUTS.system
-    expect(userDev.map((c) => c.key)).toEqual(["port", "proto", "state", "pid", "process", "cwd", "addr"])
+    expect(userDev.map((c) => c.key)).toEqual([
+      "port",
+      "proto",
+      "state",
+      "pid",
+      "process",
+      "cwd",
+      "cpu",
+      "mem",
+      "addr",
+    ])
     expect(userApp.map((c) => c.key)).toEqual(userDev.map((c) => c.key))
     expect(system.map((c) => c.key)).toEqual(userDev.map((c) => c.key))
   })
@@ -49,6 +59,8 @@ describe("COLUMN_LAYOUTS", () => {
       "pid",
       "name",
       "image",
+      "cpu",
+      "mem",
       "addr",
     ])
   })
@@ -56,7 +68,7 @@ describe("COLUMN_LAYOUTS", () => {
   test("shared columns have identical widths across layouts", () => {
     const userDev = COLUMN_LAYOUTS["user-dev"]
     const container = COLUMN_LAYOUTS.container
-    for (const key of ["port", "proto", "state", "pid", "addr"] as const) {
+    for (const key of ["port", "proto", "state", "pid", "cpu", "mem", "addr"] as const) {
       const userWidth = userDev.find((c) => c.key === key)!.width
       const containerWidth = container.find((c) => c.key === key)!.width
       expect(containerWidth).toBe(userWidth)
@@ -150,5 +162,29 @@ describe("getCellValue", () => {
   test("addr is rendered without padding", () => {
     const port = baseEntry({ localAddr: "0.0.0.0" })
     expect(getCellValue(port, "addr", 0)).toBe("0.0.0.0")
+  })
+
+  test("cpu shows one decimal with percent and pads", () => {
+    expect(getCellValue(baseEntry({ cpuPercent: 12.3 }), "cpu", 6)).toBe("12.3% ".padEnd(6))
+    expect(getCellValue(baseEntry({ cpuPercent: 100 }), "cpu", 6)).toBe("100.0%".padEnd(6))
+  })
+
+  test("cpu shows em-dash when undefined", () => {
+    expect(getCellValue(baseEntry(), "cpu", 6)).toBe("—".padEnd(6))
+    expect(getCellValue(baseEntry({ cpuPercent: 0 }), "cpu", 6)).toBe("0.0%  ".padEnd(6))
+  })
+
+  test("mem formats decimal short across magnitudes", () => {
+    expect(getCellValue(baseEntry({ memoryBytes: 0 }), "mem", 8)).toBe("0B      ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 999 }), "mem", 8)).toBe("999B    ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 1_500 }), "mem", 8)).toBe("1.50K   ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 12_000 }), "mem", 8)).toBe("12.0K   ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 124_000_000 }), "mem", 8)).toBe("124M    ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 1_500_000_000 }), "mem", 8)).toBe("1.50G   ".padEnd(8))
+    expect(getCellValue(baseEntry({ memoryBytes: 12_000_000_000 }), "mem", 8)).toBe("12.0G   ".padEnd(8))
+  })
+
+  test("mem shows em-dash when undefined", () => {
+    expect(getCellValue(baseEntry(), "mem", 8)).toBe("—".padEnd(8))
   })
 })

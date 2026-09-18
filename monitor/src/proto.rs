@@ -27,7 +27,7 @@ pub enum Category {
     Container,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortEntry {
     pub protocol: Protocol,
@@ -61,6 +61,10 @@ pub struct PortEntry {
     pub container_image: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu_percent: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_bytes: Option<u64>,
     pub category: Category,
 }
 
@@ -104,6 +108,10 @@ pub enum Event {
         seq: u64,
         added: Vec<PortEntry>,
         removed: Vec<PortEntry>,
+    },
+    PortsUpdated {
+        seq: u64,
+        ports: Vec<PortEntry>,
     },
     Ack {
         cmd: String,
@@ -206,6 +214,8 @@ mod tests {
             container_name: None,
             container_image: None,
             container_port: None,
+            cpu_percent: None,
+            memory_bytes: None,
             category: Category::UserDev,
         }
     }
@@ -389,6 +399,43 @@ mod tests {
         assert!(json.contains("\"batteryHealthPct\":79"));
         assert!(json.contains("\"batteryChargePct\":41"));
         assert!(json.contains("\"batteryState\":\"discharging\""));
+    }
+
+    #[test]
+    fn entry_resource_fields_roundtrip() {
+        let mut e = entry();
+        e.cpu_percent = Some(12.3);
+        e.memory_bytes = Some(124_000_000);
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"cpuPercent\":12.3"));
+        assert!(json.contains("\"memoryBytes\":124000000"));
+        let parsed: PortEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.cpu_percent, Some(12.3));
+        assert_eq!(parsed.memory_bytes, Some(124_000_000));
+    }
+
+    #[test]
+    fn entry_resource_fields_skipped_when_none() {
+        let e = entry();
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(!json.contains("\"cpuPercent\""));
+        assert!(!json.contains("\"memoryBytes\""));
+    }
+
+    #[test]
+    fn event_portsupdated_roundtrip() {
+        let mut e = entry();
+        e.cpu_percent = Some(7.5);
+        e.memory_bytes = Some(42_000_000);
+        let evt = Event::PortsUpdated {
+            seq: 11,
+            ports: vec![e],
+        };
+        let json = serde_json::to_string(&evt).unwrap();
+        assert!(json.contains("\"type\":\"portsupdated\""));
+        assert!(json.contains("\"seq\":11"));
+        assert!(json.contains("\"cpuPercent\":7.5"));
+        assert!(json.contains("\"memoryBytes\":42000000"));
     }
 
     #[test]

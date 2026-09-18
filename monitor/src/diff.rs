@@ -73,6 +73,8 @@ mod tests {
             container_name: None,
             container_image: None,
             container_port: None,
+            cpu_percent: None,
+            memory_bytes: None,
             category: Category::UserApp,
         }
     }

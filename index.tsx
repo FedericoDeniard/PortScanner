@@ -87,6 +87,10 @@ function getCellColor(port: PortEntry, key: ColumnKey, isSelected: boolean): str
       return colors.pink
     case "image":
       return colors.teal
+    case "cpu":
+      return colors.lavender
+    case "mem":
+      return colors.teal
     case "addr":
       return colors.base
   }
@@ -391,18 +395,16 @@ function ColumnsHeader({
       {columns.map((col) => {
         const isMuted = muted.has(col.key)
         const label = isMuted ? muteLabel(col.label) : col.label
-        const minWidth = col.width
-          ? Math.max(col.width + 1, label.length + 1)
-          : 0
-        const padded = label.padEnd(minWidth)
+        const target = col.width || Math.max(label.length, 1)
+        const padded = label.padEnd(target)
         return (
-          <box
+          <text
             key={col.key}
+            fg={colors.base}
             onMouseDown={() => onToggle(col.key)}
-            style={{ flexShrink: 0 }}
           >
-            <text fg={colors.base}>{padded}</text>
-          </box>
+            {padded}
+          </text>
         )
       })}
     </box>

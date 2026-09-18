@@ -132,6 +132,63 @@ describe("portsReducer", () => {
     ])
   })
 
+  test("PORTS_UPDATED merges resource fields in-place and preserves sort", () => {
+    const withPorts = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [entry(3000, 1), entry(8080, 2)],
+    })
+    const next = portsReducer(withPorts, {
+      type: "PORTS_UPDATED",
+      seq: 2,
+      ports: [
+        { ...entry(3000, 1), cpuPercent: 12.3, memoryBytes: 124_000_000 },
+        { ...entry(8080, 2), cpuPercent: 0.5, memoryBytes: 9_000_000 },
+      ],
+    })
+    expect(next.seq).toBe(2)
+    expect(next.ports).toHaveLength(2)
+    expect(next.ports[0]).toMatchObject({
+      localPort: 3000,
+      cpuPercent: 12.3,
+      memoryBytes: 124_000_000,
+    })
+    expect(next.ports[1]).toMatchObject({
+      localPort: 8080,
+      cpuPercent: 0.5,
+      memoryBytes: 9_000_000,
+    })
+  })
+
+  test("PORTS_UPDATED keeps entries not present in the update untouched", () => {
+    const withPorts = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [entry(3000, 1), entry(8080, 2)],
+    })
+    const next = portsReducer(withPorts, {
+      type: "PORTS_UPDATED",
+      seq: 2,
+      ports: [{ ...entry(3000, 1), cpuPercent: 5 }],
+    })
+    expect(next.ports).toHaveLength(2)
+    expect(next.ports[1]).toEqual(entry(8080, 2))
+  })
+
+  test("PORTS_UPDATED adds entries that are new since the last snapshot", () => {
+    const withPorts = portsReducer(base, {
+      type: "SNAPSHOT",
+      seq: 1,
+      ports: [entry(3000, 1)],
+    })
+    const next = portsReducer(withPorts, {
+      type: "PORTS_UPDATED",
+      seq: 2,
+      ports: [entry(3000, 1), entry(5432, 9, "tcp", "user-app")],
+    })
+    expect(next.ports.map((p) => p.localPort)).toEqual([3000, 5432])
+  })
+
   test("CONTAINERS_UPDATED enriches existing container entries by host port", () => {
     const snapshot = portsReducer(base, {
       type: "SNAPSHOT",

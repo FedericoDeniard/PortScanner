@@ -79,12 +79,16 @@ fn main() {
                     differ.update(ports.clone());
                     emit(&Event::Snapshot { seq, ports });
                 } else {
-                    let delta = differ.update(ports);
-                    emit(&Event::Delta {
-                        seq,
-                        added: delta.added,
-                        removed: delta.removed,
-                    });
+                    let delta = differ.update(ports.clone());
+                    if delta.added.is_empty() && delta.removed.is_empty() {
+                        emit(&Event::PortsUpdated { seq, ports });
+                    } else {
+                        emit(&Event::Delta {
+                            seq,
+                            added: delta.added,
+                            removed: delta.removed,
+                        });
+                    }
                 }
             }
             Err(e) => emit(&Event::Error { message: e }),

@@ -34,6 +34,7 @@ export type PortsAction =
   | { type: "READY" }
   | { type: "SNAPSHOT"; seq: number; ports: PortEntry[] }
   | { type: "DELTA"; seq: number; added: PortEntry[]; removed: PortEntry[] }
+  | { type: "PORTS_UPDATED"; seq: number; ports: PortEntry[] }
   | { type: "STATS"; stats: SystemStats }
   | { type: "CONTAINERS_UPDATED"; containers: ContainerInfo[] }
   | { type: "NOTICE"; notice?: string }
@@ -59,6 +60,23 @@ export function portsReducer(state: PortsState, action: PortsAction): PortsState
         ports: applyContainerEnrichment(
           state.containers,
           sortPorts([...kept, ...action.added]),
+        ),
+        seq: action.seq,
+      }
+    }
+    case "PORTS_UPDATED": {
+      const updates = new Map(action.ports.map((p) => [portKey(p), p]))
+      const merged = state.ports.map((p) => {
+        const updated = updates.get(portKey(p))
+        return updated ?? p
+      })
+      const knownKeys = new Set(state.ports.map(portKey))
+      const additions = action.ports.filter((p) => !knownKeys.has(portKey(p)))
+      return {
+        ...state,
+        ports: applyContainerEnrichment(
+          state.containers,
+          sortPorts([...merged, ...additions]),
         ),
         seq: action.seq,
       }
@@ -191,6 +209,9 @@ export function MonitorProvider({ children }: { children: ReactNode }) {
             break
           case "delta":
             dispatch({ type: "DELTA", seq: evt.seq, added: evt.added, removed: evt.removed })
+            break
+          case "portsupdated":
+            dispatch({ type: "PORTS_UPDATED", seq: evt.seq, ports: evt.ports })
             break
           case "stats":
             dispatch({ type: "STATS", stats: evt.stats })

@@ -67,7 +67,7 @@ There is no TS build step: `bun run index.tsx` directly. The Rust binary lands i
 
 ## Rust backend ↔ TUI
 
-The TUI spawns `monitor/target/debug/portmon` as a child process (`Bun.spawn`). **NDJSON** communication: events over stdout (`hello`/`snapshot`/`delta`/`ack`/`error`), commands over stdin (`set_interval`/`set_filter`/`kill`/`shutdown`). If stdin closes (the TUI died), the monitor exits on its own. To debug the monitor manually:
+The TUI spawns `monitor/target/debug/portmon` as a child process (`Bun.spawn`). **NDJSON** communication: events over stdout (`hello`/`snapshot`/`delta`/`portsupdated`/`ack`/`error`), commands over stdin (`set_interval`/`set_filter`/`kill`/`shutdown`). `portsupdated` is emitted each scan cycle when no sockets were added/removed, carrying the full `PortEntry` list with refreshed `cpuPercent` (f32, %) and `memoryBytes` (u64, RSS). If stdin closes (the TUI died), the monitor exits on its own. To debug the monitor manually:
 
 ```bash
 echo '{"cmd":"shutdown"}' | ./monitor/target/debug/portmon | jq
