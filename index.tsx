@@ -387,17 +387,21 @@ function PortTable({
   onSelectRow: (rowIndex: number) => void
 }) {
   const scrollRef = useRef<ScrollBoxRenderable | null>(null)
-  const current = rows[selectedIndex]
+  const prevSelectedRef = useRef<number>(-1)
 
   useEffect(() => {
+    if (selectedIndex === prevSelectedRef.current) return
+    prevSelectedRef.current = selectedIndex
     const box = scrollRef.current
-    if (!box || !current) return
+    const row = rows[selectedIndex]
+    if (!box || !row) return
     const id =
-      current.kind === "header"
-        ? `group-${current.group.key}`
-        : `row-${portKey(current.port)}`
+      row.kind === "header"
+        ? `group-${row.group.key}`
+        : `row-${portKey(row.port)}`
     box.scrollChildIntoView(id)
-  }, [selectedIndex, rows])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndex])
 
   return (
     <scrollbox ref={scrollRef} style={{ rootOptions: { flexGrow: 1 } }}>
