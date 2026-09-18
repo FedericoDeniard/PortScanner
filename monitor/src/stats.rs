@@ -41,7 +41,9 @@ pub struct SystemStats {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gpu_cores: Option<u8>,
     pub total_memory_bytes: u64,
+    pub used_memory_bytes: u64,
     pub total_disk_bytes: u64,
+    pub used_disk_bytes: u64,
     pub os_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub battery_health_pct: Option<u8>,
@@ -121,6 +123,7 @@ impl StatsCollector {
     pub fn snapshot(&mut self) -> SystemStats {
         let mut sys = System::new();
         sys.refresh_memory();
+        let disks = Disks::new_with_refreshed_list();
         let uptime_secs = System::uptime();
 
         self.last_battery = poll_battery();
@@ -134,12 +137,17 @@ impl StatsCollector {
         let battery_charge_pct = self.last_battery.as_ref().and_then(|b| b.charge_pct);
         let battery_state = self.last_battery.as_ref().and_then(|b| b.state.clone());
 
+        let used_memory_bytes = sys.used_memory();
+        let used_disk_bytes = pick_root_disk_used(&disks);
+
         SystemStats {
             host_label: self.static_.host_label.clone(),
             chip: self.static_.chip.clone(),
             gpu_cores: self.static_.gpu_cores,
             total_memory_bytes: self.static_.total_memory_bytes,
+            used_memory_bytes,
             total_disk_bytes: self.static_.total_disk_bytes,
+            used_disk_bytes,
             os_version: self.static_.os_version.clone(),
             battery_health_pct,
             battery_charge_pct,
@@ -172,6 +180,14 @@ fn pick_root_disk_bytes(disks: &Disks) -> u64 {
         .find(|d| d.mount_point() == std::path::Path::new("/"))
         .map(|d| d.total_space());
     root.unwrap_or_else(|| disks.iter().map(|d| d.total_space()).max().unwrap_or(0))
+}
+
+fn pick_root_disk_used(disks: &Disks) -> u64 {
+    disks
+        .iter()
+        .find(|d| d.mount_point() == std::path::Path::new("/"))
+        .map(|d| d.total_space().saturating_sub(d.available_space()))
+        .unwrap_or(0)
 }
 
 fn sw_vers_product_version() -> Option<String> {
@@ -266,9 +282,26 @@ mod tests {
         let json = serde_json::to_string(&stats).unwrap();
         assert!(json.contains("\"hostLabel\":"));
         assert!(json.contains("\"totalMemoryBytes\":"));
+        assert!(json.contains("\"usedMemoryBytes\":"));
+        assert!(json.contains("\"totalDiskBytes\":"));
+        assert!(json.contains("\"usedDiskBytes\":"));
         assert!(json.contains("\"osVersion\":"));
         assert!(json.contains("\"uptimeSecs\":"));
         assert!(json.contains("\"collectedAtMs\":"));
+    }
+
+    #[test]
+    fn stats_used_memory_is_less_than_or_equal_to_total() {
+        let mut c = StatsCollector::new();
+        let stats = c.snapshot();
+        assert!(stats.used_memory_bytes <= stats.total_memory_bytes);
+    }
+
+    #[test]
+    fn stats_used_disk_is_less_than_or_equal_to_total() {
+        let mut c = StatsCollector::new();
+        let stats = c.snapshot();
+        assert!(stats.used_disk_bytes <= stats.total_disk_bytes);
     }
 
     #[test]

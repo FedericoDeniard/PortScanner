@@ -8,9 +8,10 @@ import { groupPorts, ownerOf, type Group } from "./src/grouping"
 import { colors } from "./src/theme"
 import { PixelCat } from "./src/mascot/PixelCat"
 import {
-  formatBytes,
   formatChipWithGpu,
   formatUptime,
+  usageSpans,
+  type Span,
 } from "./src/stats/format"
 
 const STATUS_COLOR = {
@@ -84,8 +85,6 @@ function truncateCwd(cwd: string | undefined, max = 40): string {
   return "…" + cwd.slice(cwd.length - (max - 1))
 }
 
-type Span = { text: string; fg: string }
-
 type Segment = { spans: Span[]; dropRank?: number }
 
 const SEP = " · "
@@ -121,7 +120,7 @@ function StatusLine({ segments }: { segments: Span[][] }) {
   return (
     <text>
       {spans.map((s, i) => (
-        <span key={i} fg={s.fg}>
+        <span key={i} fg={s.fg} bg={s.bg}>
           {s.text}
         </span>
       ))}
@@ -157,6 +156,15 @@ function Header() {
   const batteryState = stats.batteryState?.toLowerCase()
   const batteryPct = stats.batteryChargePct ?? stats.batteryHealthPct
 
+  const ramPct =
+    stats.totalMemoryBytes > 0
+      ? stats.usedMemoryBytes / stats.totalMemoryBytes
+      : 0
+  const diskPct =
+    stats.totalDiskBytes > 0
+      ? stats.usedDiskBytes / stats.totalDiskBytes
+      : 0
+
   const segments: Segment[] = [
     statusSeg,
     { spans: [{ text: stats.hostLabel || "—", fg: colors.pink }] },
@@ -171,17 +179,20 @@ function Header() {
       dropRank: 1,
     },
     {
-      spans: [
-        { text: "ram ", fg: colors.base },
-        { text: formatBytes(stats.totalMemoryBytes), fg: colors.lavender },
-      ],
+      spans: usageSpans(
+        ramPct,
+        stats.usedMemoryBytes,
+        stats.totalMemoryBytes,
+        "ram",
+      ),
     },
     {
-      spans: [
-        { text: "disk ", fg: colors.base },
-        { text: formatBytes(stats.totalDiskBytes), fg: colors.lavender },
-      ],
-      dropRank: 4,
+      spans: usageSpans(
+        diskPct,
+        stats.usedDiskBytes,
+        stats.totalDiskBytes,
+        "disk",
+      ),
     },
     {
       spans: [

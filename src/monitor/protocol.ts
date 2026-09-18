@@ -41,7 +41,9 @@ export type SystemStats = {
   chip: string
   gpuCores?: number
   totalMemoryBytes: number
+  usedMemoryBytes: number
   totalDiskBytes: number
+  usedDiskBytes: number
   osVersion: string
   batteryHealthPct?: number
   batteryChargePct?: number

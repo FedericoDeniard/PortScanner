@@ -342,7 +342,9 @@ mod tests {
             chip: "Apple M1".into(),
             gpu_cores: Some(7),
             total_memory_bytes: 8 * 1024 * 1024 * 1024,
+            used_memory_bytes: 6 * 1024 * 1024 * 1024,
             total_disk_bytes: 228 * 1024 * 1024 * 1024,
+            used_disk_bytes: 125 * 1024 * 1024 * 1024,
             os_version: "macOS 26.6.2".into(),
             battery_health_pct: None,
             battery_charge_pct: None,
@@ -355,6 +357,10 @@ mod tests {
         assert!(json.contains("\"type\":\"stats\""));
         assert!(json.contains("\"hostLabel\":\"MacBook Air\""));
         assert!(json.contains("\"gpuCores\":7"));
+        assert!(json.contains("\"totalMemoryBytes\":"));
+        assert!(json.contains("\"usedMemoryBytes\":"));
+        assert!(json.contains("\"totalDiskBytes\":"));
+        assert!(json.contains("\"usedDiskBytes\":"));
         assert!(json.contains("\"uptimeSecs\":"));
         assert!(!json.contains("\"batteryHealthPct\""));
         assert!(!json.contains("\"batteryChargePct\""));
@@ -368,7 +374,9 @@ mod tests {
             chip: "Apple M3 Pro".into(),
             gpu_cores: Some(18),
             total_memory_bytes: 18 * 1024 * 1024 * 1024,
+            used_memory_bytes: 12 * 1024 * 1024 * 1024,
             total_disk_bytes: 512 * 1024 * 1024 * 1024,
+            used_disk_bytes: 256 * 1024 * 1024 * 1024,
             os_version: "macOS 26.6.2".into(),
             battery_health_pct: Some(79),
             battery_charge_pct: Some(41),
