@@ -254,44 +254,30 @@ function TabBar({
 }) {
   const sep = " │ "
 
-  let prefixWidth = 0
-  for (const id of TAB_ORDER) {
-    if (id === active) break
-    prefixWidth +=
-      TAB_META[id].label.length + 1 + String(counts[id]).length + sep.length
-  }
-  const labelLen = TAB_META[active].label.length
-  const countLen = String(counts[active]).length
-  const underlineWidth = labelLen + 1 + countLen
-  const underline = " ".repeat(prefixWidth) + "─".repeat(underlineWidth)
-
   return (
-    <>
-      <box style={{ flexDirection: "row" }}>
-        {TAB_ORDER.map((id, i) => {
-          const meta = TAB_META[id]
-          const isActive = id === active
-          return (
-            <box
-              key={id}
-              style={{ flexDirection: "row" }}
-              onMouseDown={() => onSelect(id)}
-            >
-              <text fg={isActive ? colors.lavender : colors.base}>
-                {meta.label}
-              </text>
-              <text fg={isActive ? colors.pink : colors.base}>
-                {` ${counts[id]}`}
-              </text>
-              {i < TAB_ORDER.length - 1 ? (
-                <text fg={colors.base}>{sep}</text>
-              ) : null}
-            </box>
-          )
-        })}
-      </box>
-      <text fg={colors.blue}>{underline}</text>
-    </>
+    <box style={{ flexDirection: "row" }}>
+      {TAB_ORDER.map((id, i) => {
+        const meta = TAB_META[id]
+        const isActive = id === active
+        return (
+          <box
+            key={id}
+            style={{ flexDirection: "row" }}
+            onMouseDown={() => onSelect(id)}
+          >
+            <text fg={isActive ? colors.lavender : colors.base}>
+              {meta.label}
+            </text>
+            <text fg={isActive ? colors.pink : colors.base}>
+              {` ${counts[id]}`}
+            </text>
+            {i < TAB_ORDER.length - 1 ? (
+              <text fg={colors.base}>{sep}</text>
+            ) : null}
+          </box>
+        )
+      })}
+    </box>
   )
 }
 
@@ -472,7 +458,7 @@ function Footer() {
     ? " · s stop container"
     : ""
   return (
-    <box style={{ flexDirection: "row", gap: 2 }}>
+    <box style={{ flexDirection: "row", gap: 2, height: 1 }}>
       <text fg={colors.base}>{`${base}${containerExtra}`}</text>
       {state.notice ? <text fg={colors.yellow}>{state.notice}</text> : null}
     </box>
@@ -627,29 +613,38 @@ function Dashboard() {
         paddingX: 2,
         paddingY: 1,
         flexDirection: "column",
-        gap: 1,
       }}
     >
       <box style={{ position: "absolute", right: 1, bottom: 0 }}>
         <PixelCat />
       </box>
-      <Header />
-      <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
-      <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
-      <ColumnsHeader
-        columns={COLUMN_LAYOUTS[activeTab]}
-        muted={muted}
-        onToggle={toggleMute}
-      />
-      <PortTable
-        key={`${activeTab}|${[...collapsed].sort().join(",")}`}
-        rows={rows}
-        selectedIndex={safeSelected}
-        collapsed={collapsed}
-        muted={muted}
-        onToggleGroup={toggleGroup}
-        onSelectRow={setSelected}
-      />
+      <box style={{ height: 2, overflow: "hidden" }}>
+        <Header />
+      </box>
+      <box style={{ height: 2, overflow: "hidden" }}>
+        <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
+      </box>
+      <box style={{ height: 2, overflow: "hidden" }}>
+        <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
+      </box>
+      <box style={{ height: 2, overflow: "hidden" }}>
+        <ColumnsHeader
+          columns={COLUMN_LAYOUTS[activeTab]}
+          muted={muted}
+          onToggle={toggleMute}
+        />
+      </box>
+      <box style={{ flexGrow: 1 }}>
+        <PortTable
+          key={`${activeTab}|${[...collapsed].sort().join(",")}`}
+          rows={rows}
+          selectedIndex={safeSelected}
+          collapsed={collapsed}
+          muted={muted}
+          onToggleGroup={toggleGroup}
+          onSelectRow={setSelected}
+        />
+      </box>
       <Footer />
     </box>
   )
