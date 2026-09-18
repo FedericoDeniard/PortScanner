@@ -5,6 +5,9 @@ import {
   getCellValue,
   MUTED_PLACEHOLDER,
   muteLabel,
+  mutedWidth,
+  renderCellText,
+  type ColumnSpec,
 } from "./columns"
 
 const baseEntry = (overrides: Partial<PortEntry> = {}): PortEntry => ({
@@ -28,6 +31,88 @@ describe("muteLabel", () => {
 describe("MUTED_PLACEHOLDER", () => {
   test("is the off character", () => {
     expect(MUTED_PLACEHOLDER).toBe("×")
+  })
+})
+
+describe("mutedWidth", () => {
+  test("matches the wrapped label length plus one separator", () => {
+    expect(mutedWidth({ key: "port", label: "PORT", width: 8 })).toBe(9)
+    expect(mutedWidth({ key: "pid", label: "PID", width: 7 })).toBe(8)
+    expect(mutedWidth({ key: "state", label: "STATE", width: 13 })).toBe(10)
+    expect(mutedWidth({ key: "process", label: "PROCESS", width: 24 })).toBe(12)
+    expect(mutedWidth({ key: "cwd", label: "CWD", width: 40 })).toBe(8)
+    expect(mutedWidth({ key: "addr", label: "LOCAL ADDR", width: 0 })).toBe(15)
+  })
+})
+
+describe("renderCellText", () => {
+  const col = (overrides: Partial<ColumnSpec> = {}): ColumnSpec => ({
+    key: "state",
+    label: "STATE",
+    width: 13,
+    ...overrides,
+  })
+
+  test("muted cells pad to mutedWidth so they align with muted headers", () => {
+    const port = baseEntry()
+    const muted = new Set<ColumnSpec["key"]>([
+      "port",
+      "proto",
+      "state",
+      "pid",
+      "process",
+      "cwd",
+    ])
+    expect(
+      renderCellText(port, col({ key: "port", label: "PORT", width: 8 }), muted),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(9))
+    expect(
+      renderCellText(
+        port,
+        col({ key: "proto", label: "PROTO", width: 6 }),
+        muted,
+      ),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(10))
+    expect(
+      renderCellText(
+        port,
+        col({ key: "state", label: "STATE", width: 13 }),
+        muted,
+      ),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(10))
+    expect(
+      renderCellText(port, col({ key: "pid", label: "PID", width: 7 }), muted),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(8))
+    expect(
+      renderCellText(
+        port,
+        col({ key: "process", label: "PROCESS", width: 24 }),
+        muted,
+      ),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(12))
+    expect(
+      renderCellText(port, col({ key: "cwd", label: "CWD", width: 40 }), muted),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(8))
+  })
+
+  test("muted flex-width addr column also pads to mutedWidth", () => {
+    const port = baseEntry()
+    const muted = new Set<ColumnSpec["key"]>(["addr"])
+    expect(
+      renderCellText(
+        port,
+        col({ key: "addr", label: "LOCAL ADDR", width: 0 }),
+        muted,
+      ),
+    ).toBe(MUTED_PLACEHOLDER.padEnd(15))
+  })
+
+  test("non-muted columns fall through to getCellValue", () => {
+    const port = baseEntry({ localPort: 3000 })
+    const muted = new Set<ColumnSpec["key"]>()
+    expect(renderCellText(port, col({ key: "port", width: 8 }), muted)).toBe(
+      "3000    ",
+    )
   })
 })
 

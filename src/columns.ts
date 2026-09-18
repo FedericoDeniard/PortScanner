@@ -56,6 +56,19 @@ export function muteLabel(label: string): string {
   return `~/${label}/~`
 }
 
+export function mutedWidth(col: ColumnSpec): number {
+  return Math.max(muteLabel(col.label).length, 1) + 1
+}
+
+export function renderCellText(
+  port: PortEntry,
+  col: ColumnSpec,
+  muted: Set<ColumnKey>,
+): string {
+  if (muted.has(col.key)) return MUTED_PLACEHOLDER.padEnd(mutedWidth(col))
+  return getCellValue(port, col.key, col.width)
+}
+
 function truncateWithEllipsis(text: string, width: number): string {
   if (text.length <= width) return text
   return text.slice(0, width - 1) + "…"

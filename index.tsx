@@ -7,9 +7,9 @@ import { portKey, type Category, type PortEntry } from "./src/monitor/protocol"
 import { groupPorts, ownerOf, type Group } from "./src/grouping"
 import {
   COLUMN_LAYOUTS,
-  getCellValue,
-  MUTED_PLACEHOLDER,
+  mutedWidth,
   muteLabel,
+  renderCellText,
   type ColumnKey,
   type ColumnSpec,
 } from "./src/columns"
@@ -94,17 +94,6 @@ function getCellColor(port: PortEntry, key: ColumnKey, isSelected: boolean): str
     case "addr":
       return colors.base
   }
-}
-
-function renderCellText(
-  port: PortEntry,
-  col: ColumnSpec,
-  muted: Set<ColumnKey>,
-): string {
-  if (muted.has(col.key)) {
-    return col.width ? MUTED_PLACEHOLDER.padEnd(col.width) : MUTED_PLACEHOLDER
-  }
-  return getCellValue(port, col.key, col.width)
 }
 
 type Segment = { spans: Span[]; dropRank?: number }
@@ -395,7 +384,9 @@ function ColumnsHeader({
       {columns.map((col) => {
         const isMuted = muted.has(col.key)
         const label = isMuted ? muteLabel(col.label) : col.label
-        const target = col.width || Math.max(label.length, 1)
+        const target = isMuted
+          ? mutedWidth(col)
+          : col.width || Math.max(label.length, 1)
         const padded = label.padEnd(target)
         return (
           <text
