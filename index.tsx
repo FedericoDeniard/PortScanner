@@ -5,6 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { MonitorProvider, usePorts } from "./src/store"
 import { portKey, type Category, type PortEntry } from "./src/monitor/protocol"
 import { groupPorts, ownerOf, type Group } from "./src/grouping"
+import {
+  COLUMN_LAYOUTS,
+  getCellValue,
+  MUTED_PLACEHOLDER,
+  muteLabel,
+  type ColumnKey,
+  type ColumnSpec,
+} from "./src/columns"
 import { colors } from "./src/theme"
 import { PixelCat } from "./src/mascot/PixelCat"
 import {
@@ -60,29 +68,39 @@ function stateColor(state?: string): string {
   }
 }
 
-function formatRow(p: PortEntry) {
-  return {
-    port: String(p.localPort).padEnd(8),
-    proto: p.protocol.padEnd(6),
-    state: (p.state ?? "—").padEnd(13),
-    pid: String(p.pid ?? "—").padEnd(7),
-    process: (p.processName ?? "—").padEnd(20),
-    cwd: truncateCwd(p.cwd),
-    addr: p.localAddr,
+function getCellColor(port: PortEntry, key: ColumnKey, isSelected: boolean): string {
+  if (isSelected && key === "port") return colors.blue
+  switch (key) {
+    case "port":
+      return colors.pink
+    case "proto":
+      return colors.teal
+    case "state":
+      return stateColor(port.state)
+    case "pid":
+      return colors.lavender
+    case "process":
+      return colors.lavender
+    case "cwd":
+      return colors.teal
+    case "name":
+      return colors.pink
+    case "image":
+      return colors.teal
+    case "addr":
+      return colors.base
   }
 }
 
-function formatContainerLabel(p: PortEntry): string {
-  if (p.containerPort != null) {
-    return `${p.localPort}→${p.containerPort}`
+function renderCellText(
+  port: PortEntry,
+  col: ColumnSpec,
+  muted: Set<ColumnKey>,
+): string {
+  if (muted.has(col.key)) {
+    return col.width ? MUTED_PLACEHOLDER.padEnd(col.width) : MUTED_PLACEHOLDER
   }
-  return String(p.localPort)
-}
-
-function truncateCwd(cwd: string | undefined, max = 40): string {
-  if (!cwd) return "—".padEnd(max)
-  if (cwd.length <= max) return cwd.padEnd(max)
-  return "…" + cwd.slice(cwd.length - (max - 1))
+  return getCellValue(port, col.key, col.width)
 }
 
 type Segment = { spans: Span[]; dropRank?: number }
@@ -323,14 +341,15 @@ function GroupHeaderRow({
 function ChildRow({
   port,
   isSelected,
+  muted,
   onSelect,
 }: {
   port: PortEntry
   isSelected: boolean
+  muted: Set<ColumnKey>
   onSelect: () => void
 }) {
-  const row = formatRow(port)
-  const isContainer = port.category === "container"
+  const columns = COLUMN_LAYOUTS[port.category]
   return (
     <box
       id={`row-${portKey(port)}`}
@@ -343,44 +362,47 @@ function ChildRow({
       <text fg={isSelected ? colors.blue : colors.base}>
         {isSelected ? "▸ " : "  "}
       </text>
-      <text fg={isSelected ? colors.blue : colors.pink}>
-        {isContainer ? formatContainerLabel(port).padEnd(8) : row.port}
-      </text>
-      <text fg={colors.teal}>{row.proto}</text>
-      <text fg={stateColor(port.state)}>{row.state}</text>
-      <text fg={colors.lavender}>{row.pid}</text>
-      <text fg={isContainer ? colors.pink : colors.lavender}>
-        {(isContainer
-          ? truncateContainerName(port.containerName ?? port.processName ?? "container", 24)
-        : row.process.slice(0, 24)).padEnd(24)}
-      </text>
-      <text fg={colors.teal}>
-        {isContainer
-          ? truncateImage(port.containerImage, 40)
-          : truncateCwd(port.cwd, 40)}
-      </text>
-      <text fg={colors.base}>{row.addr}</text>
+      {columns.map((col) => {
+        const isMuted = muted.has(col.key)
+        const text = renderCellText(port, col, muted)
+        const fg = isMuted ? colors.base : getCellColor(port, col.key, isSelected)
+        return (
+          <text key={col.key} fg={fg}>
+            {text}
+          </text>
+        )
+      })}
     </box>
   )
 }
 
-function truncateContainerName(name: string | undefined, max: number): string {
-  if (!name) return "—"
-  if (name.length <= max) return name
-  return name.slice(0, max - 1) + "…"
-}
-
-function truncateImage(image: string | undefined, max: number): string {
-  if (!image) return "—".padEnd(max)
-  if (image.length <= max) return image.padEnd(max)
-  return "…" + image.slice(image.length - (max - 1))
-}
-
-function ContainerColumnsHeader() {
+function ColumnsHeader({
+  columns,
+  muted,
+  onToggle,
+}: {
+  columns: ColumnSpec[]
+  muted: Set<ColumnKey>
+  onToggle: (key: ColumnKey) => void
+}) {
   return (
-    <text fg={colors.base}>
-      {"  PORT    PROTO STATE        PID     NAME                                  IMAGE                                        LOCAL ADDR"}
-    </text>
+    <box style={{ flexDirection: "row" }}>
+      <text fg={colors.base}>{"  "}</text>
+      {columns.map((col) => {
+        const isMuted = muted.has(col.key)
+        const label = isMuted ? muteLabel(col.label) : col.label
+        const padded = col.width ? label.padEnd(col.width) : label
+        return (
+          <box
+            key={col.key}
+            onMouseDown={() => onToggle(col.key)}
+            style={{ width: col.width || undefined, flexShrink: 0 }}
+          >
+            <text fg={colors.base}>{padded}</text>
+          </box>
+        )
+      })}
+    </box>
   )
 }
 
@@ -388,12 +410,14 @@ function PortTable({
   rows,
   selectedIndex,
   collapsed,
+  muted,
   onToggleGroup,
   onSelectRow,
 }: {
   rows: Row[]
   selectedIndex: number
   collapsed: Set<string>
+  muted: Set<ColumnKey>
   onToggleGroup: (key: string) => void
   onSelectRow: (rowIndex: number) => void
 }) {
@@ -435,6 +459,7 @@ function PortTable({
               key={portKey(row.port)}
               port={row.port}
               isSelected={isSelected}
+              muted={muted}
               onSelect={() => onSelectRow(i)}
             />
           )
@@ -446,7 +471,7 @@ function PortTable({
 
 function Footer() {
   const { state } = usePorts()
-  const base = "↑/↓ select · home/end jump · g/G next/prev group · space collapse · x kill · t terminal · tab cat · r restart · q quit"
+  const base = "↑/↓ select · home/end jump · g/G next/prev group · space collapse · x kill · t terminal · tab cat · r restart · click header mute · q quit"
   const containerExtra = state.ports.some((p) => p.category === "container")
     ? " · s stop container"
     : ""
@@ -464,6 +489,16 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<Category>("user-dev")
   const [selected, setSelected] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [muted, setMuted] = useState<Set<ColumnKey>>(new Set())
+
+  const toggleMute = (key: ColumnKey) => {
+    setMuted((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const counts = useMemo(() => {
     const c: Record<Category, number> = {
@@ -605,18 +640,17 @@ function Dashboard() {
       <Header />
       <TabBar active={activeTab} counts={counts} onSelect={setActiveTab} />
       <text fg={colors.base}>{TAB_META[activeTab].hint}</text>
-      {activeTab === "container" ? (
-        <ContainerColumnsHeader />
-      ) : (
-        <text fg={colors.base}>
-          {"  PORT    PROTO STATE        PID     PROCESS                 CWD                                       LOCAL ADDR"}
-        </text>
-      )}
+      <ColumnsHeader
+        columns={COLUMN_LAYOUTS[activeTab]}
+        muted={muted}
+        onToggle={toggleMute}
+      />
       <PortTable
         key={`${activeTab}|${[...collapsed].sort().join(",")}`}
         rows={rows}
         selectedIndex={safeSelected}
         collapsed={collapsed}
+        muted={muted}
         onToggleGroup={toggleGroup}
         onSelectRow={setSelected}
       />
